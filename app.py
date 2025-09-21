@@ -6,7 +6,7 @@ import tempfile
 import os
 
 # --- App UI ---
-st.set_page_config(page_title="Russian Number Plate Detection", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Russian Number Plate Detection", layout="wide")
 st.title("🚗 Russian Number Plate Detection")
 
 # --- User Guide ---
@@ -27,20 +27,22 @@ for key in ["stop_processing", "resume_processing", "last_frame", "out_path", "p
 # --- Sidebar Controls ---
 st.sidebar.header("⚙️ Processing Options")
 
-resize_scale = st.sidebar.slider("🖼️ Resize Scale", 0.3, 1.0, 0.7, step=0.1)
-st.sidebar.caption("Scales down frames before detection to speed up processing; smaller values are faster but less accurate.")
+with st.sidebar.expander("🛠️ Advanced Settings", expanded=True):
+    resize_scale = st.slider("🖼️ Resize Scale", 0.3, 1.0, 0.7, step=0.1)
+    st.caption("Scales down frames before detection to speed up processing; smaller values are faster but less accurate.")
 
-scale_factor = st.sidebar.slider("📏 Scale Factor", 1.01, 1.5, 1.05, step=0.01)
-st.sidebar.caption("Specifies how much the image size is reduced at each image scale; smaller = more accurate, slower.")
+    scale_factor = st.slider("📏 Scale Factor", 1.01, 1.5, 1.05, step=0.01)
+    st.caption("Specifies how much the image size is reduced at each image scale; smaller = more accurate, slower.")
 
-min_neighbors = st.sidebar.slider("🔍 Min Neighbors", 1, 15, 6)
-st.sidebar.caption("Specifies how many neighbors each rectangle should have to retain it; higher = stricter detection.")
+    min_neighbors = st.slider("🔍 Min Neighbors", 1, 15, 6)
+    st.caption("Specifies how many neighbors each rectangle should have to retain it; higher = stricter detection.")
 
 show_preview = st.sidebar.checkbox("👁️ Show live frame preview", value=True)
 st.sidebar.caption("Displays processed frames while detection is running; uncheck to improve processing speed.")
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 Reset App"):
+    # --- Reset Session State ---
     st.session_state.stop_processing = False
     st.session_state.resume_processing = False
     st.session_state.last_frame = 0
@@ -48,11 +50,12 @@ if st.sidebar.button("🔄 Reset App"):
     if st.session_state.out_path and os.path.exists(st.session_state.out_path):
         os.unlink(st.session_state.out_path)
     st.session_state.out_path = None
-    st.experimental_rerun()
-st.sidebar.caption("Resets progress and allows uploading a new video.")
+    st.info("✅ Reset successful. Please upload a new video to start again.")
+    st.stop()
 
 # --- File Upload ---
 uploaded_file = st.file_uploader("📂 Choose a video...", type=["mp4", "mov", "avi"])
+tfile = None
 if uploaded_file is not None:
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     tfile.write(uploaded_file.read())
@@ -60,6 +63,10 @@ if uploaded_file is not None:
     st.video(tfile.name)
     st.caption("Preview of the uploaded video before processing.")
 
+# --- Start Processing Button (Disabled if no video) ---
+if uploaded_file is None:
+    st.warning("Please upload a video to enable processing.")
+else:
     if st.button("▶️ Start Processing"):
         st.session_state.processing_started = True
 
@@ -92,11 +99,11 @@ if uploaded_file is not None and st.session_state.processing_started:
         st.error("Error reading video dimensions. Please try another video.")
         st.stop()
 
-    # --- Prepare output video safely ---
+    # Prepare output video
     if st.session_state.out_path is None:
         out_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
         st.session_state.out_path = out_file.name
-        out_file.close()  # Close it so VideoWriter can open it
+        out_file.close()
 
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out_writer = cv2.VideoWriter(st.session_state.out_path, fourcc, fps, (width, height))
@@ -177,6 +184,7 @@ if uploaded_file is not None and st.session_state.processing_started:
     out_writer.release()
     os.unlink(tfile.name)
 
+    # --- Final UI ---
     st.subheader("🎬 Processed Video")
     st.video(st.session_state.out_path)
     st.caption("This is the fully processed video with number plates highlighted.")
