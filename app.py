@@ -1,35 +1,37 @@
-# app.py
-# Compatible with Python 3.10.13
+#compatible with python 3.10.13
 import streamlit as st
 import cv2
+import numpy as np
 import tempfile
 import os
-import numpy as np
 
-st.title("Number Plate Detection from Video")
+# Title and description
+st.title("Russian Number Plate Detection")
+st.write("Upload a video file to detect Russian number plates using OpenCV.")
 
-# Upload video
-video_file = st.file_uploader("Upload a video", type=["mp4", "avi", "mov"])
+# Upload video file
+uploaded_file = st.file_uploader("Choose a video...", type=["mp4", "mov", "avi"])
 
-if video_file is not None:
-    # Save uploaded file to a temporary file
+if uploaded_file is not None:
+    # Save uploaded video to a temporary file
     tfile = tempfile.NamedTemporaryFile(delete=False)
-    tfile.write(video_file.read())
+    tfile.write(uploaded_file.read())
+
+    # Load the cascade classifier (as in your original code)
+    number_plate = cv2.CascadeClassifier(
+        "/Users/pvsairamsaketh/Desktop/opencvudemy/Computer Vision with Python Course/Computer-Vision-with-Python/DATA/haarcascades/haarcascade_russian_plate_number.xml"
+    )
+
+    def detect_numberplate(img):
+        russian_plate = img.copy()
+        gray = cv2.cvtColor(russian_plate, cv2.COLOR_BGR2GRAY)
+        face_rects = number_plate.detectMultiScale(gray, 1.1, 5)
+        for (x, y, w, h) in face_rects:
+            cv2.rectangle(russian_plate, (x, y), (x + w, y + h), (0, 0, 255), 10)
+        return russian_plate
 
     # Open video using OpenCV
     cap = cv2.VideoCapture(tfile.name)
-
-    # Get video properties
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = cap.get(cv2.CAP_PROP_FPS)
-
-    # Temporary file for output if saved
-    out_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-
-    # VideoWriter to save output
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(out_file.name, fourcc, fps, (width, height))
 
     stframe = st.empty()
 
@@ -38,18 +40,14 @@ if video_file is not None:
         if not ret:
             break
 
-        # Example: draw dummy box (simulate detection)
-        cv2.rectangle(frame, (100, 100), (300, 150), (0, 255, 0), 2)
-        cv2.putText(frame, "Number Plate", (100, 95), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        # Detect number plate in frame
+        frame = detect_numberplate(frame)
 
-        out.write(frame)
+        # Convert BGR to RGB for display
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        # Convert BGR to RGB for Streamlit display
-        stframe.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), channels="RGB")
+        # Show frame in Streamlit
+        stframe.image(frame_rgb, channels="RGB")
 
     cap.release()
-    out.release()
-
-    # Option to download
-    with open(out_file.name, "rb") as f:
-        st.download_button("💾 Download Processed Video", f, file_name="detected_video.mp4")
+    os.unlink(tfile.name)  # Optional: delete temp file after use
