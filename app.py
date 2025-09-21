@@ -7,7 +7,7 @@ import os
 
 # --- App UI ---
 st.set_page_config(page_title="Russian Number Plate Detection", layout="wide", initial_sidebar_state="collapsed")
-st.title("🚗 Number Plate Detection")
+st.title("🚗 Russian Number Plate Detection")
 
 # --- User Guide ---
 with st.expander("📖 How to use this app", expanded=True):
@@ -24,20 +24,20 @@ for key in ["stop_processing", "resume_processing", "last_frame", "out_path", "p
     if key not in st.session_state:
         st.session_state[key] = False if "stop" in key or "resume" in key else 0 if key=="last_frame" else None
 
-# --- Sidebar Controls with one-line explanations ---
+# --- Sidebar Controls with explanation lines ---
 st.sidebar.header("⚙️ Processing Options")
 
 resize_scale = st.sidebar.slider(
     "🖼️ Resize Scale",
-    0.3, 1.0, 0.7, step=0.1,
-    help="Scales down frames before detection to speed up processing; smaller values are faster but less accurate."
+    0.3, 1.0, 0.7, step=0.1
 )
+st.sidebar.caption("Scales down frames before detection to speed up processing; smaller values are faster but less accurate.")
 
 min_neighbors = st.sidebar.slider(
     "🔍 Detection Strictness",
-    3, 10, 6,
-    help="Controls how strict the number plate detection is; higher values reduce false positives but may miss some plates."
+    3, 10, 6
 )
+st.sidebar.caption("Controls how strict the number plate detection is; higher values reduce false positives but may miss some plates.")
 
 show_preview = st.sidebar.checkbox(
     "👁️ Show live frame preview",
