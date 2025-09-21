@@ -51,8 +51,8 @@ if st.sidebar.button("🔄 Reset App"):
     st.info("✅ Reset successful. Please upload a new file to start again.")
     st.stop()
 
-# --- Select Upload Type ---
-upload_type = st.radio("Select upload type:", ["Photo", "Video"])
+# --- Select Upload Type (default None) ---
+upload_type = st.radio("Select upload type:", ["Photo", "Video"], index=None)
 
 # --- Haarcascade classifier ---
 number_plate = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_russian_plate_number.xml")
@@ -71,111 +71,114 @@ def detect_numberplate(img):
         cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
     return img
 
-# --- Photo Upload ---
-if upload_type == "Photo":
-    uploaded_file = st.file_uploader("📂 Choose a photo...", type=["jpg", "jpeg", "png"])
-    if uploaded_file is not None:
-        file_bytes = np.frombuffer(uploaded_file.read(), np.uint8)
-        img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-        if img is not None:
-            # Resize photo according to resize_scale
-            resized_img = cv2.resize(img, (0,0), fx=resize_scale, fy=resize_scale)
-            processed_img = detect_numberplate(resized_img.copy())
-            st.image(cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB), caption="Processed Photo", use_column_width=True)
+# --- Only process if user selected type ---
+if upload_type:
+
+    # --- Photo Upload ---
+    if upload_type == "Photo":
+        uploaded_file = st.file_uploader("📂 Choose a photo...", type=["jpg", "jpeg", "png"])
+        if uploaded_file is not None:
+            file_bytes = np.frombuffer(uploaded_file.read(), np.uint8)
+            img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+            if img is not None:
+                # Resize photo according to resize_scale
+                resized_img = cv2.resize(img, (0,0), fx=resize_scale, fy=resize_scale)
+                processed_img = detect_numberplate(resized_img.copy())
+                st.image(cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB), caption="Processed Photo", use_column_width=True)
+
+                # Ask user whether to save
+                save_photo = st.checkbox("💾 Save this photo?")
+                if save_photo:
+                    _, buffer = cv2.imencode(".png", processed_img)
+                    st.download_button("⬇️ Download Processed Photo", buffer.tobytes(), file_name="processed_photo.png")
+            else:
+                st.error("Could not read the uploaded image.")
+
+    # --- Video Upload ---
+    else:
+        uploaded_file = st.file_uploader("📂 Choose a video...", type=["mp4", "mov", "avi"])
+        tfile = None
+        if uploaded_file is not None:
+            tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+            tfile.write(uploaded_file.read())
+            tfile.flush()
+            st.video(tfile.name)
+            st.caption("Preview of the uploaded video before processing.")
+
+        # --- Start Processing Button ---
+        if uploaded_file is None:
+            st.warning("Please upload a video to enable processing.")
+        else:
+            if st.button("▶️ Start Processing"):
+                st.session_state.processing_started = True
+
+        # --- Process Video ---
+        if uploaded_file is not None and st.session_state.processing_started:
+            cap = cv2.VideoCapture(tfile.name)
+            if not cap.isOpened():
+                st.error("Failed to open video. Please upload a valid video file.")
+                st.stop()
+
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            fps = int(cap.get(cv2.CAP_PROP_FPS)) or 24
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+            if width == 0 or height == 0:
+                st.error("Error reading video dimensions. Please try another video.")
+                st.stop()
+
+            # Prepare output video
+            if st.session_state.out_path is None:
+                out_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+                st.session_state.out_path = out_file.name
+                out_file.close()
+
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out_writer = cv2.VideoWriter(st.session_state.out_path, fourcc, fps, 
+                                         (int(width*resize_scale), int(height*resize_scale)))
+            if not out_writer.isOpened():
+                st.error("Failed to initialize video writer. Check file permissions.")
+                st.stop()
+
+            # --- Placeholders ---
+            stframe = st.empty()
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            frame_count = 0
+            preview_update_rate = 3
+
+            # --- Processing Loop ---
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                frame_count += 1
+                # Resize frame according to resize_scale
+                resized_frame = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
+                processed_frame = detect_numberplate(resized_frame.copy())
+                out_writer.write(processed_frame)
+
+                if show_preview and frame_count % preview_update_rate == 0:
+                    stframe.image(cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB), channels="RGB", use_column_width=True)
+
+                if total_frames > 0:
+                    progress = int((frame_count / total_frames) * 100)
+                    progress_bar.progress(min(progress, 100))
+                    status_text.text(f"Processing frame {frame_count}/{total_frames} ({progress}%)")
+
+            cap.release()
+            out_writer.release()
+            os.unlink(tfile.name)
+
+            # --- Final UI ---
+            st.subheader("🎬 Processed Video")
+            st.video(st.session_state.out_path)
+            st.caption("This is the fully processed video with number plates highlighted.")
 
             # Ask user whether to save
-            save_photo = st.checkbox("💾 Save this photo?")
-            if save_photo:
-                _, buffer = cv2.imencode(".png", processed_img)
-                st.download_button("⬇️ Download Processed Photo", buffer.tobytes(), file_name="processed_photo.png")
-        else:
-            st.error("Could not read the uploaded image.")
-
-# --- Video Upload ---
-else:
-    uploaded_file = st.file_uploader("📂 Choose a video...", type=["mp4", "mov", "avi"])
-    tfile = None
-    if uploaded_file is not None:
-        tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-        tfile.write(uploaded_file.read())
-        tfile.flush()
-        st.video(tfile.name)
-        st.caption("Preview of the uploaded video before processing.")
-
-    # --- Start Processing Button ---
-    if uploaded_file is None:
-        st.warning("Please upload a video to enable processing.")
-    else:
-        if st.button("▶️ Start Processing"):
-            st.session_state.processing_started = True
-
-    # --- Process Video ---
-    if uploaded_file is not None and st.session_state.processing_started:
-        cap = cv2.VideoCapture(tfile.name)
-        if not cap.isOpened():
-            st.error("Failed to open video. Please upload a valid video file.")
-            st.stop()
-
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = int(cap.get(cv2.CAP_PROP_FPS)) or 24
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-        if width == 0 or height == 0:
-            st.error("Error reading video dimensions. Please try another video.")
-            st.stop()
-
-        # Prepare output video
-        if st.session_state.out_path is None:
-            out_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-            st.session_state.out_path = out_file.name
-            out_file.close()
-
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out_writer = cv2.VideoWriter(st.session_state.out_path, fourcc, fps, 
-                                     (int(width*resize_scale), int(height*resize_scale)))
-        if not out_writer.isOpened():
-            st.error("Failed to initialize video writer. Check file permissions.")
-            st.stop()
-
-        # --- Placeholders ---
-        stframe = st.empty()
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        frame_count = 0
-        preview_update_rate = 3
-
-        # --- Processing Loop ---
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            frame_count += 1
-            # Resize frame according to resize_scale
-            resized_frame = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
-            processed_frame = detect_numberplate(resized_frame.copy())
-            out_writer.write(processed_frame)
-
-            if show_preview and frame_count % preview_update_rate == 0:
-                stframe.image(cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB), channels="RGB", use_column_width=True)
-
-            if total_frames > 0:
-                progress = int((frame_count / total_frames) * 100)
-                progress_bar.progress(min(progress, 100))
-                status_text.text(f"Processing frame {frame_count}/{total_frames} ({progress}%)")
-
-        cap.release()
-        out_writer.release()
-        os.unlink(tfile.name)
-
-        # --- Final UI ---
-        st.subheader("🎬 Processed Video")
-        st.video(st.session_state.out_path)
-        st.caption("This is the fully processed video with number plates highlighted.")
-
-        # Ask user whether to save
-        save_video = st.checkbox("💾 Save this video?")
-        if save_video:
-            with open(st.session_state.out_path, "rb") as f:
-                st.download_button("⬇️ Download Processed Video", f, file_name="processed_video.mp4")
+            save_video = st.checkbox("💾 Save this video?")
+            if save_video:
+                with open(st.session_state.out_path, "rb") as f:
+                    st.download_button("⬇️ Download Processed Video", f, file_name="processed_video.mp4")
