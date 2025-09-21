@@ -20,7 +20,7 @@ with st.expander("📖 How to use this app", expanded=True):
     6. After completion, watch the **processed video** and **download it** if needed.  
     """)
 
-st.write("Upload a video and detect Russian number plates using **OpenCV**.")
+st.write("Upload a video and detect number plates using **OpenCV**.")
 
 # --- Session State Setup ---
 if "stop_processing" not in st.session_state:
@@ -32,17 +32,58 @@ if "last_frame" not in st.session_state:
 if "out_path" not in st.session_state:
     st.session_state.out_path = None
 
-# --- Sidebar Controls ---
+# --- Sidebar Controls (Enhanced) ---
 st.sidebar.header("⚙️ Processing Options")
-st.sidebar.caption("Adjust speed vs accuracy of detection.")
+st.sidebar.markdown("Customize detection speed and accuracy for your video:")
+
+# Resize scale slider
 resize_scale = st.sidebar.slider(
-    "Resize scale (smaller = faster, less accurate)", 0.3, 1.0, 0.7, step=0.1
+    label="🖼️ Resize Scale",
+    min_value=0.3,
+    max_value=1.0,
+    value=0.7,
+    step=0.1,
+    help="Smaller = faster processing, less accuracy. Larger = slower, more accurate."
 )
-st.sidebar.caption("Scale down frames before detection to improve speed.")
+st.sidebar.markdown(
+    "<small>Scale down frames before detection to improve speed.</small>", unsafe_allow_html=True
+)
+
+# Min neighbors slider
 min_neighbors = st.sidebar.slider(
-    "Min Neighbors (higher = stricter detection, fewer false positives)", 3, 10, 6
+    label="🔍 Detection Strictness",
+    min_value=3,
+    max_value=10,
+    value=6,
+    help="Higher value = stricter detection, fewer false positives."
 )
-st.sidebar.caption("Controls how many neighbors a rectangle needs to be considered a valid detection.")
+st.sidebar.markdown(
+    "<small>Controls how many neighbors a rectangle needs to be considered a valid detection.</small>", 
+    unsafe_allow_html=True
+)
+
+# Optional live preview
+show_preview = st.sidebar.checkbox("👁️ Show live frame preview", value=True)
+
+# Separator
+st.sidebar.markdown("---")
+
+# Expander for advanced options
+with st.sidebar.expander("🛠️ Advanced Options", expanded=False):
+    st.markdown(
+        "- You can later add advanced detection parameters here\n"
+        "- e.g., different cascade models, additional preprocessing, logging, etc."
+    )
+
+# Sidebar reset button
+if st.sidebar.button("🔄 Reset App"):
+    st.session_state.stop_processing = False
+    st.session_state.resume_processing = False
+    st.session_state.last_frame = 0
+    if st.session_state.out_path and os.path.exists(st.session_state.out_path):
+        os.unlink(st.session_state.out_path)
+    st.session_state.out_path = None
+    st.experimental_rerun()
 
 # --- File Upload with Progress ---
 uploaded_file = st.file_uploader("📂 Choose a video...", type=["mp4", "mov", "avi"])
@@ -173,9 +214,10 @@ if tfile is not None:
         # Save processed frame
         out_writer.write(frame)
 
-        # Live preview
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        stframe.image(frame_rgb, channels="RGB", use_container_width=True)
+        # Live preview if enabled
+        if show_preview:
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            stframe.image(frame_rgb, channels="RGB", use_container_width=True)
 
         # Progress bar update
         if total_frames > 0:
