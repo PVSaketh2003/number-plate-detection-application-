@@ -15,7 +15,7 @@ with st.expander("📖 How to use this app", expanded=True):
     1. **Select whether you want to process a photo or video**.  
     2. **Adjust settings** in the sidebar.  
     3. **Upload the file** using the uploader.  
-    4. Click **Start Processing** to detect number plates.  
+    4. Click **Start Processing** to detect number plates frame by frame.  
     5. After processing, choose whether you want to save/download the result.  
     """)
 
@@ -28,7 +28,7 @@ for key in ["last_frame", "out_path", "processing_started"]:
 st.sidebar.header("⚙️ Processing Options")
 with st.sidebar.expander("🛠️ Advanced Settings", expanded=True):
     resize_scale = st.slider("🖼️ Resize Scale", 0.3, 1.0, 0.7, step=0.1)
-    st.caption("Scales down frames before display to speed up processing; smaller values are faster but less accurate.")
+    st.caption("Scales down frames before detection to speed up processing; smaller values are faster but less accurate.")
 
     scale_factor = st.slider("📏 Scale Factor", 1.01, 1.5, 1.05, step=0.01)
     st.caption("Specifies how much the image size is reduced at each image scale; smaller = more accurate, slower.")
@@ -49,13 +49,13 @@ if st.sidebar.button("🔄 Reset App"):
     st.info("✅ Reset successful. Please upload a new file to start again.")
     st.stop()
 
-# --- Select Upload Type (default None) ---
+# --- Select Upload Type ---
 upload_type = st.radio("Select upload type:", ["Photo", "Video"], index=None)
 
 # --- Haarcascade classifier ---
 number_plate = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_russian_plate_number.xml")
 
-def detect_numberplate(img, min_size=(30,30)):
+def detect_numberplate(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
     gray = cv2.GaussianBlur(gray, (3, 3), 0)
@@ -63,13 +63,13 @@ def detect_numberplate(img, min_size=(30,30)):
         gray,
         scaleFactor=scale_factor,
         minNeighbors=min_neighbors,
-        minSize=min_size
+        minSize=(30, 30)
     )
     for (x, y, w, h) in plates:
         cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
     return img
 
-# --- Only process if user selected type ---
+# --- Process based on type ---
 if upload_type:
 
     # --- Photo Upload ---
@@ -79,12 +79,12 @@ if upload_type:
             file_bytes = np.frombuffer(uploaded_file.read(), np.uint8)
             img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
             if img is not None:
-                # Detect on original size for better accuracy
-                processed_img = detect_numberplate(img.copy(), min_size=(20,20))  # smaller minSize for photos
-                
-                # Display resized version for UI
-                display_img = cv2.resize(processed_img, (0,0), fx=resize_scale, fy=resize_scale)
-                st.image(cv2.cvtColor(display_img, cv2.COLOR_BGR2RGB),
+                # Resize for detection
+                small_img = cv2.resize(img, (0,0), fx=resize_scale, fy=resize_scale)
+                processed_small = detect_numberplate(small_img.copy())
+                # Scale back to original size
+                processed_img = cv2.resize(processed_small, (img.shape[1], img.shape[0]))
+                st.image(cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB),
                          caption="Processed Photo", use_container_width=True)
 
                 save_photo = st.checkbox("💾 Save this photo?")
@@ -132,8 +132,7 @@ if upload_type:
                 out_file.close()
 
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out_writer = cv2.VideoWriter(st.session_state.out_path, fourcc, fps, 
-                                         (int(width*resize_scale), int(height*resize_scale)))
+            out_writer = cv2.VideoWriter(st.session_state.out_path, fourcc, fps, (width, height))
             if not out_writer.isOpened():
                 st.error("Failed to initialize video writer. Check file permissions.")
                 st.stop()
@@ -150,8 +149,12 @@ if upload_type:
                     break
 
                 frame_count += 1
-                resized_frame = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
-                processed_frame = detect_numberplate(resized_frame.copy())
+                # Resize for detection
+                small_frame = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
+                processed_small = detect_numberplate(small_frame.copy())
+                # Scale back to original size
+                processed_frame = cv2.resize(processed_small, (width, height))
+
                 out_writer.write(processed_frame)
 
                 if show_preview and frame_count % preview_update_rate == 0:
