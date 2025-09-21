@@ -26,7 +26,6 @@ for key in ["last_frame", "out_path", "processing_started"]:
 
 # --- Sidebar Controls ---
 st.sidebar.header("⚙️ Processing Options")
-
 with st.sidebar.expander("🛠️ Advanced Settings", expanded=True):
     resize_scale = st.slider("🖼️ Resize Scale", 0.3, 1.0, 0.7, step=0.1)
     st.caption("Scales down frames before detection to speed up processing; smaller values are faster but less accurate.")
@@ -42,7 +41,6 @@ st.sidebar.caption("Displays processed frames while detection is running; unchec
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 Reset App"):
-    # --- Reset Session State ---
     st.session_state.last_frame = 0
     st.session_state.processing_started = False
     if st.session_state.out_path and os.path.exists(st.session_state.out_path):
@@ -81,12 +79,11 @@ if upload_type:
             file_bytes = np.frombuffer(uploaded_file.read(), np.uint8)
             img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
             if img is not None:
-                # Resize photo according to resize_scale
                 resized_img = cv2.resize(img, (0,0), fx=resize_scale, fy=resize_scale)
                 processed_img = detect_numberplate(resized_img.copy())
-                st.image(cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB), caption="Processed Photo", use_column_width=True)
+                st.image(cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB),
+                         caption="Processed Photo", use_container_width=True)
 
-                # Ask user whether to save
                 save_photo = st.checkbox("💾 Save this photo?")
                 if save_photo:
                     _, buffer = cv2.imencode(".png", processed_img)
@@ -105,14 +102,12 @@ if upload_type:
             st.video(tfile.name)
             st.caption("Preview of the uploaded video before processing.")
 
-        # --- Start Processing Button ---
         if uploaded_file is None:
             st.warning("Please upload a video to enable processing.")
         else:
             if st.button("▶️ Start Processing"):
                 st.session_state.processing_started = True
 
-        # --- Process Video ---
         if uploaded_file is not None and st.session_state.processing_started:
             cap = cv2.VideoCapture(tfile.name)
             if not cap.isOpened():
@@ -128,7 +123,6 @@ if upload_type:
                 st.error("Error reading video dimensions. Please try another video.")
                 st.stop()
 
-            # Prepare output video
             if st.session_state.out_path is None:
                 out_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
                 st.session_state.out_path = out_file.name
@@ -141,27 +135,25 @@ if upload_type:
                 st.error("Failed to initialize video writer. Check file permissions.")
                 st.stop()
 
-            # --- Placeholders ---
             stframe = st.empty()
             progress_bar = st.progress(0)
             status_text = st.empty()
             frame_count = 0
             preview_update_rate = 3
 
-            # --- Processing Loop ---
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
 
                 frame_count += 1
-                # Resize frame according to resize_scale
                 resized_frame = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
                 processed_frame = detect_numberplate(resized_frame.copy())
                 out_writer.write(processed_frame)
 
                 if show_preview and frame_count % preview_update_rate == 0:
-                    stframe.image(cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB), channels="RGB", use_column_width=True)
+                    stframe.image(cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB),
+                                  channels="RGB", use_container_width=True)
 
                 if total_frames > 0:
                     progress = int((frame_count / total_frames) * 100)
@@ -172,12 +164,10 @@ if upload_type:
             out_writer.release()
             os.unlink(tfile.name)
 
-            # --- Final UI ---
             st.subheader("🎬 Processed Video")
             st.video(st.session_state.out_path)
             st.caption("This is the fully processed video with number plates highlighted.")
 
-            # Ask user whether to save
             save_video = st.checkbox("💾 Save this video?")
             if save_video:
                 with open(st.session_state.out_path, "rb") as f:
