@@ -6,8 +6,8 @@ import tempfile
 import os
 
 # --- App UI ---
-st.set_page_config(page_title="Russian Number Plate Detection", layout="wide")
-st.title("🚗 Russian Number Plate Detection")
+st.set_page_config(page_title="Number Plate Detection", layout="wide")
+st.title("🚗 Number Plate Detection")
 
 # --- User Guide ---
 with st.expander("📖 How to use this app", expanded=True):
