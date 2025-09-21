@@ -28,7 +28,7 @@ for key in ["last_frame", "out_path", "processing_started"]:
 st.sidebar.header("⚙️ Processing Options")
 with st.sidebar.expander("🛠️ Advanced Settings", expanded=True):
     resize_scale = st.slider("🖼️ Resize Scale", 0.3, 1.0, 0.7, step=0.1)
-    st.caption("Scales down frames before detection to speed up processing; smaller values are faster but less accurate.")
+    st.caption("Scales down frames before display to speed up processing; smaller values are faster but less accurate.")
 
     scale_factor = st.slider("📏 Scale Factor", 1.01, 1.5, 1.05, step=0.01)
     st.caption("Specifies how much the image size is reduced at each image scale; smaller = more accurate, slower.")
@@ -55,7 +55,7 @@ upload_type = st.radio("Select upload type:", ["Photo", "Video"], index=None)
 # --- Haarcascade classifier ---
 number_plate = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_russian_plate_number.xml")
 
-def detect_numberplate(img):
+def detect_numberplate(img, min_size=(30,30)):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
     gray = cv2.GaussianBlur(gray, (3, 3), 0)
@@ -63,7 +63,7 @@ def detect_numberplate(img):
         gray,
         scaleFactor=scale_factor,
         minNeighbors=min_neighbors,
-        minSize=(30, 30)
+        minSize=min_size
     )
     for (x, y, w, h) in plates:
         cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
@@ -79,9 +79,12 @@ if upload_type:
             file_bytes = np.frombuffer(uploaded_file.read(), np.uint8)
             img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
             if img is not None:
-                resized_img = cv2.resize(img, (0,0), fx=resize_scale, fy=resize_scale)
-                processed_img = detect_numberplate(resized_img.copy())
-                st.image(cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB),
+                # Detect on original size for better accuracy
+                processed_img = detect_numberplate(img.copy(), min_size=(20,20))  # smaller minSize for photos
+                
+                # Display resized version for UI
+                display_img = cv2.resize(processed_img, (0,0), fx=resize_scale, fy=resize_scale)
+                st.image(cv2.cvtColor(display_img, cv2.COLOR_BGR2RGB),
                          caption="Processed Photo", use_container_width=True)
 
                 save_photo = st.checkbox("💾 Save this photo?")
