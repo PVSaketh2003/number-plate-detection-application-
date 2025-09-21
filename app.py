@@ -16,7 +16,7 @@ with st.expander("📖 How to use this app", expanded=True):
     2. **Adjust settings** in the sidebar.  
     3. **Upload the file** using the uploader.  
     4. Click **Start Processing** to detect number plates.  
-    5. Download the processed file if needed.  
+    5. After processing, choose whether you want to save/download the result.  
     """)
 
 # --- Session State ---
@@ -82,9 +82,12 @@ if upload_type == "Photo":
             resized_img = cv2.resize(img, (0,0), fx=resize_scale, fy=resize_scale)
             processed_img = detect_numberplate(resized_img.copy())
             st.image(cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB), caption="Processed Photo", use_column_width=True)
-            # Download processed image
-            _, buffer = cv2.imencode(".png", processed_img)
-            st.download_button("⬇️ Download Processed Photo", buffer.tobytes(), file_name="processed_photo.png")
+
+            # Ask user whether to save
+            save_photo = st.checkbox("💾 Save this photo?")
+            if save_photo:
+                _, buffer = cv2.imencode(".png", processed_img)
+                st.download_button("⬇️ Download Processed Photo", buffer.tobytes(), file_name="processed_photo.png")
         else:
             st.error("Could not read the uploaded image.")
 
@@ -99,7 +102,7 @@ else:
         st.video(tfile.name)
         st.caption("Preview of the uploaded video before processing.")
 
-    # --- Start Processing Button (Disabled if no video) ---
+    # --- Start Processing Button ---
     if uploaded_file is None:
         st.warning("Please upload a video to enable processing.")
     else:
@@ -129,7 +132,6 @@ else:
             out_file.close()
 
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        # output width and height should be resized according to resize_scale
         out_writer = cv2.VideoWriter(st.session_state.out_path, fourcc, fps, 
                                      (int(width*resize_scale), int(height*resize_scale)))
         if not out_writer.isOpened():
@@ -156,7 +158,7 @@ else:
             out_writer.write(processed_frame)
 
             if show_preview and frame_count % preview_update_rate == 0:
-                stframe.image(cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB), channels="RGB", use_container_width=True)
+                stframe.image(cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB), channels="RGB", use_column_width=True)
 
             if total_frames > 0:
                 progress = int((frame_count / total_frames) * 100)
@@ -172,6 +174,8 @@ else:
         st.video(st.session_state.out_path)
         st.caption("This is the fully processed video with number plates highlighted.")
 
-        with open(st.session_state.out_path, "rb") as f:
-            st.download_button("⬇️ Download Processed Video", f, file_name="processed_video.mp4")
-            st.caption("Download the processed video for offline use.")
+        # Ask user whether to save
+        save_video = st.checkbox("💾 Save this video?")
+        if save_video:
+            with open(st.session_state.out_path, "rb") as f:
+                st.download_button("⬇️ Download Processed Video", f, file_name="processed_video.mp4")
