@@ -59,11 +59,11 @@ def detect_numberplate(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
     gray = cv2.GaussianBlur(gray, (3, 3), 0)
+    # Removed minSize to improve detection accuracy
     plates = number_plate.detectMultiScale(
         gray,
         scaleFactor=scale_factor,
-        minNeighbors=min_neighbors,
-        minSize=(30, 30)
+        minNeighbors=min_neighbors
     )
     for (x, y, w, h) in plates:
         cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
