@@ -20,7 +20,7 @@ with st.expander("📖 How to use this app", expanded=True):
     6. After completion, watch the **processed video** and **download it** if needed.  
     """)
 
-st.write("Upload a video and detect number plates using **OpenCV**.")
+st.write("Upload a video and detect Russian number plates using **OpenCV**.")
 
 # --- Session State Setup ---
 if "stop_processing" not in st.session_state:
@@ -32,75 +32,23 @@ if "last_frame" not in st.session_state:
 if "out_path" not in st.session_state:
     st.session_state.out_path = None
 
-# --- Sidebar Controls (Enhanced) ---
-st.sidebar.header("⚙️ Processing Options")
-st.sidebar.markdown("Customize detection speed and accuracy for your video:")
-
-# Resize scale slider
-resize_scale = st.sidebar.slider(
-    label="🖼️ Resize Scale",
-    min_value=0.3,
-    max_value=1.0,
-    value=0.7,
-    step=0.1,
-    help="Smaller = faster processing, less accuracy. Larger = slower, more accurate."
-)
-st.sidebar.markdown(
-    "<small>Scale down frames before detection to improve speed.</small>", unsafe_allow_html=True
-)
-
-# Min neighbors slider
-min_neighbors = st.sidebar.slider(
-    label="🔍 Detection Strictness",
-    min_value=3,
-    max_value=10,
-    value=6,
-    help="Higher value = stricter detection, fewer false positives."
-)
-st.sidebar.markdown(
-    "<small>Controls how many neighbors a rectangle needs to be considered a valid detection.</small>", 
-    unsafe_allow_html=True
-)
-
-# Optional live preview
-show_preview = st.sidebar.checkbox("👁️ Show live frame preview", value=True)
-
-# Separator
-st.sidebar.markdown("---")
-
-# Expander for advanced options
-with st.sidebar.expander("🛠️ Advanced Options", expanded=False):
-    st.markdown(
-        "- You can later add advanced detection parameters here\n"
-        "- e.g., different cascade models, additional preprocessing, logging, etc."
-    )
-
-# Sidebar reset button
-if st.sidebar.button("🔄 Reset App"):
-    st.session_state.stop_processing = False
-    st.session_state.resume_processing = False
-    st.session_state.last_frame = 0
-    if st.session_state.out_path and os.path.exists(st.session_state.out_path):
-        os.unlink(st.session_state.out_path)
-    st.session_state.out_path = None
-    st.experimental_rerun()
-
-# --- File Upload with Progress ---
+# --- File Upload ---
 uploaded_file = st.file_uploader("📂 Choose a video...", type=["mp4", "mov", "avi"])
 st.caption("Upload a video file to begin processing.")
 
-tfile = None
-if uploaded_file is not None:
+# --- Sidebar: Show message if no video uploaded ---
+if uploaded_file is None:
+    st.sidebar.header("⚙️ Processing Options")
+    st.sidebar.info("Upload a video to access processing options.")
+else:
+    tfile = tempfile.NamedTemporaryFile(delete=False)
+    # --- Upload video with progress ---
     st.info("📤 Uploading video...")
     upload_progress = st.progress(0)
-
-    # Save uploaded video to a temporary file with progress
-    tfile = tempfile.NamedTemporaryFile(delete=False)
-    chunk_size = 1024 * 1024  # 1 MB chunks
+    chunk_size = 1024 * 1024
     uploaded_file.seek(0, os.SEEK_END)
     total_size = uploaded_file.tell()
     uploaded_file.seek(0)
-
     bytes_written = 0
     while True:
         chunk = uploaded_file.read(chunk_size)
@@ -109,38 +57,52 @@ if uploaded_file is not None:
         tfile.write(chunk)
         bytes_written += len(chunk)
         upload_progress.progress(min(int(bytes_written / total_size * 100), 100))
-
     tfile.flush()
     st.success("✅ Upload complete!")
     st.video(tfile.name)
     st.caption("Preview of the uploaded video before processing.")
 
-# --- Process video only after upload ---
-if tfile is not None:
-    # Haarcascade classifier
-    number_plate = cv2.CascadeClassifier(
-        cv2.data.haarcascades + "haarcascade_russian_plate_number.xml"
+    # --- Sidebar Controls (Shown Only After Upload) ---
+    st.sidebar.header("⚙️ Processing Options")
+    st.sidebar.markdown("Customize detection speed and accuracy for your video:")
+
+    resize_scale = st.sidebar.slider(
+        "🖼️ Resize Scale",
+        0.3, 1.0, 0.7, step=0.1,
+        help="Smaller = faster processing, less accuracy. Larger = slower, more accurate."
     )
+    st.sidebar.markdown("<small>Scale down frames before detection to improve speed.</small>", unsafe_allow_html=True)
 
+    min_neighbors = st.sidebar.slider(
+        "🔍 Detection Strictness",
+        3, 10, 6,
+        help="Higher value = stricter detection, fewer false positives."
+    )
+    st.sidebar.markdown("<small>Controls how many neighbors a rectangle needs to be considered a valid detection.</small>", unsafe_allow_html=True)
+
+    show_preview = st.sidebar.checkbox("👁️ Show live frame preview", value=True)
+
+    st.sidebar.markdown("---")
+    with st.sidebar.expander("🛠️ Advanced Options", expanded=False):
+        st.markdown("- Advanced detection parameters can go here.\n- e.g., different cascade models, logging, preprocessing.")
+
+    if st.sidebar.button("🔄 Reset App"):
+        st.session_state.stop_processing = False
+        st.session_state.resume_processing = False
+        st.session_state.last_frame = 0
+        if st.session_state.out_path and os.path.exists(st.session_state.out_path):
+            os.unlink(st.session_state.out_path)
+        st.session_state.out_path = None
+        st.experimental_rerun()
+    st.sidebar.caption("Resets progress and allows uploading a new video.")
+
+    # --- Haarcascade classifier ---
+    number_plate = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_russian_plate_number.xml")
     def detect_numberplate(img):
-        """Detect Russian number plates with preprocessing for better accuracy."""
-        russian_plate = img.copy()
-
-        # Preprocessing
-        gray = cv2.cvtColor(russian_plate, cv2.COLOR_BGR2GRAY)
-        gray = cv2.equalizeHist(gray)  # improve contrast
-        gray = cv2.GaussianBlur(gray, (3, 3), 0)  # reduce noise
-
-        # Detect plates
-        plates = number_plate.detectMultiScale(
-            gray, scaleFactor=1.05, minNeighbors=min_neighbors, minSize=(30, 30)
-        )
-
-        # Draw rectangles
-        for (x, y, w, h) in plates:
-            cv2.rectangle(russian_plate, (x, y), (x + w, y + h), (0, 0, 255), 2)
-
-        return russian_plate
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.equalizeHist(gray)
+        gray = cv2.GaussianBlur(gray, (3, 3), 0)
+        return number_plate.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=min_neighbors, minSize=(30, 30))
 
     # --- Video Properties ---
     cap = cv2.VideoCapture(tfile.name)
@@ -149,11 +111,9 @@ if tfile is not None:
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    # Resume from last frame if needed
     if st.session_state.resume_processing and st.session_state.last_frame > 0:
         cap.set(cv2.CAP_PROP_POS_FRAMES, st.session_state.last_frame)
 
-    # Prepare output video
     if st.session_state.out_path is None:
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         st.session_state.out_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
@@ -181,7 +141,7 @@ if tfile is not None:
                 os.unlink(st.session_state.out_path)
             st.session_state.out_path = None
             st.success("✅ Reset successful. Upload a new video to start again.")
-            st.caption("Clear progress and start fresh with a new video.")
+            st.caption("Clears progress and allows uploading a new video.")  # 1-line explanation
             st.stop()
 
     # --- Placeholders ---
@@ -190,6 +150,7 @@ if tfile is not None:
     status_text = st.empty()
 
     frame_count = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+    preview_update_rate = 3  # update st.image every 3 frames
 
     # --- Processing Loop ---
     while cap.isOpened():
@@ -203,23 +164,22 @@ if tfile is not None:
             break
 
         frame_count += 1
-
-        # Resize before detection
         small_frame = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
-        processed_small = detect_numberplate(small_frame)
+        plates = detect_numberplate(small_frame)
 
-        # Scale back to original size
-        frame = cv2.resize(processed_small, (width, height))
+        scale_x = frame.shape[1] / small_frame.shape[1]
+        scale_y = frame.shape[0] / small_frame.shape[0]
+        for (x, y, w, h) in plates:
+            cv2.rectangle(frame,
+                          (int(x * scale_x), int(y * scale_y)),
+                          (int((x + w) * scale_x), int((y + h) * scale_y)),
+                          (0, 0, 255), 2)
 
-        # Save processed frame
         out_writer.write(frame)
 
-        # Live preview if enabled
-        if show_preview:
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            stframe.image(frame_rgb, channels="RGB", use_container_width=True)
+        if show_preview and frame_count % preview_update_rate == 0:
+            stframe.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), channels="RGB", use_container_width=True)
 
-        # Progress bar update
         if total_frames > 0:
             progress = int((frame_count / total_frames) * 100)
             progress_bar.progress(min(progress, 100))
@@ -233,7 +193,6 @@ if tfile is not None:
     if frame_count == total_frames:
         st.success("✅ Processing complete!")
 
-    # Processed video output
     st.subheader("🎬 Processed Video")
     st.video(st.session_state.out_path)
     st.caption("This is the fully processed video with number plates highlighted.")
