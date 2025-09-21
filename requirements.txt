@@ -1,3 +1,6 @@
-streamlit
-opencv-python
-numpy
+name: base
+dependencies:
+  - python=3.10
+  - streamlit
+  - opencv
+  - numpy
