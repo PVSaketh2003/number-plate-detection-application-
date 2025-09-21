@@ -17,7 +17,7 @@ if uploaded_file is not None:
     tfile = tempfile.NamedTemporaryFile(delete=False)
     tfile.write(uploaded_file.read())
 
-    # Load the cascade classifier (fixed path using OpenCV's built-in data)
+    # Load the cascade classifier (using OpenCV's built-in data path)
     number_plate = cv2.CascadeClassifier(
         cv2.data.haarcascades + "haarcascade_russian_plate_number.xml"
     )
@@ -35,10 +35,20 @@ if uploaded_file is not None:
 
     stframe = st.empty()
 
+    frame_skip = 2  # process every 2nd frame (faster without losing much quality)
+    frame_count = 0
+
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
+
+        frame_count += 1
+        if frame_count % frame_skip != 0:
+            continue  # skip frame to save processing time
+
+        # Resize frame for speed (reduce to half resolution)
+        frame = cv2.resize(frame, (frame.shape[1] // 2, frame.shape[0] // 2))
 
         # Detect number plate in frame
         frame = detect_numberplate(frame)
