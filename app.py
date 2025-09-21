@@ -8,6 +8,18 @@ import os
 # --- App UI ---
 st.set_page_config(page_title="Russian Number Plate Detection", layout="wide")
 st.title("🚗 Russian Number Plate Detection")
+
+# --- User Guide ---
+with st.expander("📖 How to use this app", expanded=True):
+    st.markdown("""
+    1. **Upload a video** using the file uploader below.  
+    2. **Adjust settings** in the sidebar (resize scale affects speed/accuracy).  
+    3. Once uploaded, you’ll see a **preview of your video**.  
+    4. The app will process frame by frame and show a **live preview with progress bar**.  
+    5. Use **Stop, Resume, or Reset** controls to manage processing.  
+    6. After completion, watch the **processed video** and **download it** if needed.  
+    """)
+
 st.write("Upload a video and detect Russian number plates using **OpenCV**.")
 
 # --- Session State Setup ---
@@ -22,28 +34,71 @@ if "out_path" not in st.session_state:
 
 # --- Sidebar Controls ---
 st.sidebar.header("⚙️ Processing Options")
-resize_scale = st.sidebar.slider("Resize scale (smaller = faster)", 0.3, 1.0, 0.5, step=0.1)
+st.sidebar.caption("Adjust speed vs accuracy of detection.")
+resize_scale = st.sidebar.slider(
+    "Resize scale (smaller = faster, less accurate)", 0.3, 1.0, 0.7, step=0.1
+)
+st.sidebar.caption("Scale down frames before detection to improve speed.")
+min_neighbors = st.sidebar.slider(
+    "Min Neighbors (higher = stricter detection, fewer false positives)", 3, 10, 6
+)
+st.sidebar.caption("Controls how many neighbors a rectangle needs to be considered a valid detection.")
 
-# --- File Upload ---
+# --- File Upload with Progress ---
 uploaded_file = st.file_uploader("📂 Choose a video...", type=["mp4", "mov", "avi"])
+st.caption("Upload a video file to begin processing.")
 
+tfile = None
 if uploaded_file is not None:
-    # Save uploaded file
-    tfile = tempfile.NamedTemporaryFile(delete=False)
-    tfile.write(uploaded_file.read())
+    st.info("📤 Uploading video...")
+    upload_progress = st.progress(0)
 
+    # Save uploaded video to a temporary file with progress
+    tfile = tempfile.NamedTemporaryFile(delete=False)
+    chunk_size = 1024 * 1024  # 1 MB chunks
+    uploaded_file.seek(0, os.SEEK_END)
+    total_size = uploaded_file.tell()
+    uploaded_file.seek(0)
+
+    bytes_written = 0
+    while True:
+        chunk = uploaded_file.read(chunk_size)
+        if not chunk:
+            break
+        tfile.write(chunk)
+        bytes_written += len(chunk)
+        upload_progress.progress(min(int(bytes_written / total_size * 100), 100))
+
+    tfile.flush()
+    st.success("✅ Upload complete!")
+    st.video(tfile.name)
+    st.caption("Preview of the uploaded video before processing.")
+
+# --- Process video only after upload ---
+if tfile is not None:
     # Haarcascade classifier
     number_plate = cv2.CascadeClassifier(
         cv2.data.haarcascades + "haarcascade_russian_plate_number.xml"
     )
 
     def detect_numberplate(img):
-        """Detect Russian number plates and draw rectangles."""
+        """Detect Russian number plates with preprocessing for better accuracy."""
         russian_plate = img.copy()
+
+        # Preprocessing
         gray = cv2.cvtColor(russian_plate, cv2.COLOR_BGR2GRAY)
-        face_rects = number_plate.detectMultiScale(gray, 1.1, 5)
-        for (x, y, w, h) in face_rects:
-            cv2.rectangle(russian_plate, (x, y), (x + w, y + h), (0, 0, 255), 3)
+        gray = cv2.equalizeHist(gray)  # improve contrast
+        gray = cv2.GaussianBlur(gray, (3, 3), 0)  # reduce noise
+
+        # Detect plates
+        plates = number_plate.detectMultiScale(
+            gray, scaleFactor=1.05, minNeighbors=min_neighbors, minSize=(30, 30)
+        )
+
+        # Draw rectangles
+        for (x, y, w, h) in plates:
+            cv2.rectangle(russian_plate, (x, y), (x + w, y + h), (0, 0, 255), 2)
+
         return russian_plate
 
     # --- Video Properties ---
@@ -53,27 +108,29 @@ if uploaded_file is not None:
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    # Resume from last frame
+    # Resume from last frame if needed
     if st.session_state.resume_processing and st.session_state.last_frame > 0:
         cap.set(cv2.CAP_PROP_POS_FRAMES, st.session_state.last_frame)
 
-    # Prepare output video (always generate so user can download later)
+    # Prepare output video
     if st.session_state.out_path is None:
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         st.session_state.out_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
     out_writer = cv2.VideoWriter(st.session_state.out_path, fourcc, fps, (width, height))
 
-    # --- UI Controls ---
+    # --- Controls ---
     st.subheader("🎛️ Controls")
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("⏹ Stop"):
             st.session_state.stop_processing = True
             st.session_state.resume_processing = False
+        st.caption("Stop processing at the current frame.")
     with col2:
         if st.button("▶️ Resume"):
             st.session_state.resume_processing = True
             st.session_state.stop_processing = False
+        st.caption("Resume processing from where it was stopped.")
     with col3:
         if st.button("🔄 Reset"):
             st.session_state.stop_processing = False
@@ -83,6 +140,7 @@ if uploaded_file is not None:
                 os.unlink(st.session_state.out_path)
             st.session_state.out_path = None
             st.success("✅ Reset successful. Upload a new video to start again.")
+            st.caption("Clear progress and start fresh with a new video.")
             st.stop()
 
     # --- Placeholders ---
@@ -92,7 +150,7 @@ if uploaded_file is not None:
 
     frame_count = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
 
-    # --- Processing Loop (frame by frame) ---
+    # --- Processing Loop ---
     while cap.isOpened():
         if st.session_state.stop_processing:
             st.session_state.last_frame = frame_count
@@ -109,7 +167,7 @@ if uploaded_file is not None:
         small_frame = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
         processed_small = detect_numberplate(small_frame)
 
-        # Scale back to original
+        # Scale back to original size
         frame = cv2.resize(processed_small, (width, height))
 
         # Save processed frame
@@ -133,9 +191,11 @@ if uploaded_file is not None:
     if frame_count == total_frames:
         st.success("✅ Processing complete!")
 
-    # Always show video player + download button
+    # Processed video output
     st.subheader("🎬 Processed Video")
     st.video(st.session_state.out_path)
+    st.caption("This is the fully processed video with number plates highlighted.")
 
     with open(st.session_state.out_path, "rb") as f:
         st.download_button("⬇️ Download Processed Video", f, file_name="processed_video.mp4")
+        st.caption("Download the processed video for offline use.")
