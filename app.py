@@ -106,7 +106,7 @@ if uploaded_file is not None:
 
         # Show live preview
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        stframe.image(frame_rgb, channels="RGB", use_column_width=True)
+        stframe.image(frame_rgb, channels="RGB", use_container_width=True)
 
         # Save to processed video
         out_writer.write(frame)
