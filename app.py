@@ -16,7 +16,7 @@ with st.expander("📖 How to use this app", expanded=True):
     2. **Select whether you want to process a photo or video**.  
     3. **Upload the file** using the uploader.  
     4. Click **Start Detection** to detect number plates frame by frame.  
-    5. After processing, download the processed result directly or change parameters and re-run detection.  
+    5. After processing, download the processed result directly.  
     """)
 
 # --- Session State ---
@@ -29,29 +29,24 @@ st.sidebar.header("⚙️ Detection Settings (Mandatory)")
 
 resize_scale_input = st.sidebar.selectbox(
     "🖼️ Resize Scale (0.1 – 1.0)",
-    options=[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
-    index=None
+    options=[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0]
 )
 scale_factor_input = st.sidebar.number_input(
     "📏 Scale Factor (1.01 – 1.5)",
     min_value=1.01, max_value=1.5, step=0.01,
-    value=None, format="%.2f"
+    format="%.2f"
 )
 min_neighbors_input = st.sidebar.number_input(
     "🔍 Min Neighbors (1 – 10)",
-    min_value=1, max_value=10, step=1,
-    value=None
+    min_value=1, max_value=10, step=1
 )
 
 if st.sidebar.button("✅ Submit Parameters"):
-    if resize_scale_input is None or scale_factor_input is None or min_neighbors_input is None:
-        st.sidebar.warning("⚠️ Please enter all values before submitting.")
-    else:
-        st.session_state.params_submitted = True
-        st.session_state.resize_scale = resize_scale_input
-        st.session_state.scale_factor = scale_factor_input
-        st.session_state.min_neighbors = min_neighbors_input
-        st.sidebar.success("Parameters submitted successfully!")
+    st.session_state.params_submitted = True
+    st.session_state.resize_scale = resize_scale_input
+    st.session_state.scale_factor = scale_factor_input
+    st.session_state.min_neighbors = min_neighbors_input
+    st.sidebar.success("Parameters submitted successfully!")
 
 # Only show upload type selection after parameters are submitted
 if st.session_state.params_submitted:
@@ -61,7 +56,7 @@ if st.session_state.params_submitted:
     # --- Haarcascade classifier ---
     number_plate = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_russian_plate_number.xml")
 
-    # --- Object Detection Function (Your Logic Intact, no blur) ---
+    # --- Object Detection Function (Your Logic Intact) ---
     def detect_numberplate(img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = cv2.equalizeHist(gray)
@@ -78,7 +73,7 @@ if st.session_state.params_submitted:
     # PHOTO UPLOAD & PROCESSING
     # -------------------------
     if upload_type == "Photo":
-        uploaded_file = st.file_uploader("📂 Choose a photo...", type=["jpg", "jpeg", "png"], key="photo_uploader")
+        uploaded_file = st.file_uploader("📂 Choose a photo...", type=["jpg", "jpeg", "png"])
         if uploaded_file is not None:
             st.session_state.uploaded_file = uploaded_file
             st.session_state.file_type = "photo"
@@ -108,21 +103,12 @@ if st.session_state.params_submitted:
                         buffer.tobytes(),
                         file_name="processed_photo.png"
                     )
-                
-                if st.button("🔄 Re-run Detection with New Parameters"):
-                    # Clear previous processed image
-                    st.session_state.processed_img = None
-                    # Run detection again
-                    small_img = cv2.resize(st.session_state.original_img, (0,0), fx=st.session_state.resize_scale, fy=st.session_state.resize_scale)
-                    processed_small = detect_numberplate(small_img.copy())
-                    processed_img = cv2.resize(processed_small, (st.session_state.original_img.shape[1], st.session_state.original_img.shape[0]))
-                    st.session_state.processed_img = processed_img
 
     # -------------------------
     # VIDEO UPLOAD & PROCESSING
     # -------------------------
     if upload_type == "Video":
-        uploaded_file = st.file_uploader("📂 Choose a video...", type=["mp4", "mov", "avi"], key="video_uploader")
+        uploaded_file = st.file_uploader("📂 Choose a video...", type=["mp4", "mov", "avi"])
         if uploaded_file is not None:
             st.session_state.uploaded_file = uploaded_file
             st.session_state.file_type = "video"
@@ -183,38 +169,3 @@ if st.session_state.params_submitted:
                             file_name="processed_video.mp4",
                             mime="video/mp4"
                         )
-
-                if st.button("🔄 Re-run Detection with New Parameters"):
-                    # Clear previous processed video
-                    st.session_state.processed_video = None
-                    cap = cv2.VideoCapture(st.session_state.temp_video_path)
-                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    fps = int(cap.get(cv2.CAP_PROP_FPS)) or 25
-                    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-                    out_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
-                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                    out_writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
-                    stframe = st.empty()
-                    progress_bar = st.progress(0)
-                    frame_count = 0
-
-                    while cap.isOpened():
-                        ret, frame = cap.read()
-                        if not ret:
-                            break
-                        frame_count += 1
-                        small_frame = cv2.resize(frame, (0, 0), fx=st.session_state.resize_scale, fy=st.session_state.resize_scale)
-                        processed_small = detect_numberplate(small_frame.copy())
-                        processed_frame = cv2.resize(processed_small, (width, height))
-                        out_writer.write(processed_frame)
-
-                        if frame_count % 3 == 0:
-                            stframe.image(cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB),
-                                          channels="RGB", use_container_width=True)
-                        progress_bar.progress(min(frame_count / total_frames, 1.0))
-
-                    cap.release()
-                    out_writer.release()
-                    st.session_state.processed_video = out_path
