@@ -39,17 +39,22 @@ with st.expander("📖 How to use this app", expanded=True):
 st.sidebar.header("⚙️ Detection Settings")
 
 resize_scale = st.sidebar.number_input(
-    "🖼️ Resize Scale", min_value=0.1, max_value=1.0, value=0.5, step=0.1,
-    help="Scales down frames before detection to speed up processing; smaller values are faster but less accurate."
+    "🖼️ Resize Scale (0.1 – 1.0)",
+    min_value=0.1, max_value=1.0, value=0.5, step=0.1
 )
+st.sidebar.caption("Scales down frames before detection; smaller = faster but less accurate.")
+
 scale_factor = st.sidebar.number_input(
-    "📏 Scale Factor", min_value=1.01, max_value=1.5, value=1.1, step=0.01,
-    help="Specifies how much the image size is reduced at each image scale; smaller = more accurate, slower."
+    "📏 Scale Factor (1.01 – 1.5)",
+    min_value=1.01, max_value=1.5, value=1.1, step=0.01
 )
+st.sidebar.caption("Controls pyramid scaling; smaller = more accurate but slower.")
+
 min_neighbors = st.sidebar.number_input(
-    "🔍 Min Neighbors", min_value=1, max_value=15, value=5, step=1,
-    help="Specifies how many neighbors each rectangle should have to retain it; higher = stricter detection."
+    "🔍 Min Neighbors (1 – 15)",
+    min_value=1, max_value=15, value=5, step=1
 )
+st.sidebar.caption("Sets how many nearby detections are required; higher = stricter detection.")
 
 # File uploader
 file_type = st.radio("Select upload type:", ["Image", "Video"], index=None)
