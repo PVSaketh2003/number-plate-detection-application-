@@ -66,18 +66,17 @@ upload_type = st.radio("Select upload type:", ["Photo", "Video"], index=None)
 # --- Haarcascade classifier ---
 number_plate = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_russian_plate_number.xml")
 
-# --- Object Detection Function (Your Logic Intact) ---
+# --- Object Detection Function (Your Logic Intact, no blurring) ---
 def detect_numberplate(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    gray = cv2.equalizeHist(gray)
-    gray = cv2.GaussianBlur(gray, (3, 3), 0)
+    gray = cv2.equalizeHist(gray)  # Keep histogram equalization to improve detection
     plates = number_plate.detectMultiScale(
         gray,
         scaleFactor=scale_factor,
         minNeighbors=min_neighbors
     )
     for (x, y, w, h) in plates:
-        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)  # red box
     return img
 
 # -------------------------
