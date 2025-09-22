@@ -64,14 +64,14 @@ if st.session_state.params_submitted:
     # --- Object Detection Function (Your Logic Intact, no blur) ---
     def detect_numberplate(img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        gray = cv2.equalizeHist(gray)  # Keep histogram equalization to improve detection
+        gray = cv2.equalizeHist(gray)
         plates = number_plate.detectMultiScale(
             gray,
             scaleFactor=st.session_state.scale_factor,
             minNeighbors=st.session_state.min_neighbors
         )
         for (x, y, w, h) in plates:
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)  # red box
+            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
         return img
 
     # -------------------------
@@ -110,11 +110,13 @@ if st.session_state.params_submitted:
                     )
                 
                 if st.button("🔄 Re-run Detection with New Parameters"):
+                    # Clear previous processed image
+                    st.session_state.processed_img = None
+                    # Run detection again
                     small_img = cv2.resize(st.session_state.original_img, (0,0), fx=st.session_state.resize_scale, fy=st.session_state.resize_scale)
                     processed_small = detect_numberplate(small_img.copy())
                     processed_img = cv2.resize(processed_small, (st.session_state.original_img.shape[1], st.session_state.original_img.shape[0]))
                     st.session_state.processed_img = processed_img
-                    st.experimental_rerun()
 
     # -------------------------
     # VIDEO UPLOAD & PROCESSING
@@ -183,6 +185,8 @@ if st.session_state.params_submitted:
                         )
 
                 if st.button("🔄 Re-run Detection with New Parameters"):
+                    # Clear previous processed video
+                    st.session_state.processed_video = None
                     cap = cv2.VideoCapture(st.session_state.temp_video_path)
                     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -214,4 +218,3 @@ if st.session_state.params_submitted:
                     cap.release()
                     out_writer.release()
                     st.session_state.processed_video = out_path
-                    st.experimental_rerun()
