@@ -12,7 +12,7 @@ st.title("🚗 Russian Number Plate Detection")
 # --- User Guide ---
 with st.expander("📖 How to use this app", expanded=True):
     st.markdown("""
-    1. **Enter detection parameters in the sidebar and click Submit**.  
+    1. **Adjust detection parameters in the sidebar and click Submit**.  
     2. **Select whether you want to process a photo or video**.  
     3. **Upload the file** using the uploader.  
     4. Click **Start Detection** to detect number plates frame by frame.  
@@ -28,17 +28,21 @@ for key in ["params_submitted", "uploaded_file", "original_img", "processed_img"
 st.sidebar.header("⚙️ Detection Settings (Mandatory)")
 
 resize_scale_input = st.sidebar.selectbox(
-    "🖼️ Resize Scale (0.1 – 1.0)",
-    options=[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0]
+    "🖼️ Resize Scale (0.1 – 1.0)", 
+    options=[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
+    help="Scales down frames before detection; smaller = faster but less accurate."
 )
+
 scale_factor_input = st.sidebar.number_input(
-    "📏 Scale Factor (1.01 – 1.5)",
-    min_value=1.01, max_value=1.5, step=0.01,
-    format="%.2f"
+    "📏 Scale Factor (1.01 – 1.5)", 
+    min_value=1.01, max_value=1.5, step=0.01, format="%.2f",
+    help="Controls pyramid scaling; smaller = more accurate but slower."
 )
+
 min_neighbors_input = st.sidebar.number_input(
-    "🔍 Min Neighbors (1 – 10)",
-    min_value=1, max_value=10, step=1
+    "🔍 Min Neighbors (1 – 10)", 
+    min_value=1, max_value=10, step=1,
+    help="Sets how many nearby detections are required; higher = stricter detection."
 )
 
 if st.sidebar.button("✅ Submit Parameters"):
@@ -48,15 +52,14 @@ if st.sidebar.button("✅ Submit Parameters"):
     st.session_state.min_neighbors = min_neighbors_input
     st.sidebar.success("Parameters submitted successfully!")
 
-# Only show upload type selection after parameters are submitted
+# --- Only show upload type selection after parameters submitted ---
 if st.session_state.params_submitted:
-    # --- Select Upload Type ---
-    upload_type = st.radio("Select upload type:", ["Photo", "Video"], index=None)
+    upload_type = st.radio("Select upload type:", ["Photo", "Video"])
 
-    # --- Haarcascade classifier ---
+    # Haarcascade classifier
     number_plate = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_russian_plate_number.xml")
 
-    # --- Object Detection Function (Your Logic Intact) ---
+    # Object detection function (logic intact)
     def detect_numberplate(img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = cv2.equalizeHist(gray)
@@ -70,20 +73,16 @@ if st.session_state.params_submitted:
         return img
 
     # -------------------------
-    # PHOTO UPLOAD & PROCESSING
+    # Photo processing
     # -------------------------
     if upload_type == "Photo":
         uploaded_file = st.file_uploader("📂 Choose a photo...", type=["jpg", "jpeg", "png"])
         if uploaded_file is not None:
-            st.session_state.uploaded_file = uploaded_file
-            st.session_state.file_type = "photo"
-            
             file_bytes = np.frombuffer(uploaded_file.read(), np.uint8)
             img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
             if img is None:
                 st.error("Could not read the uploaded image.")
                 st.stop()
-            
             st.session_state.original_img = img
 
             if st.button("▶️ Start Detection"):
@@ -92,33 +91,27 @@ if st.session_state.params_submitted:
                 processed_img = cv2.resize(processed_small, (img.shape[1], img.shape[0]))
                 st.session_state.processed_img = processed_img
 
-            # Show processed image if exists
             if st.session_state.processed_img is not None:
                 st.image(cv2.cvtColor(st.session_state.processed_img, cv2.COLOR_BGR2RGB),
                          caption="Processed Photo", use_container_width=True)
                 if st.button("💾 Save Processed Image"):
                     _, buffer = cv2.imencode(".png", st.session_state.processed_img)
-                    st.download_button(
-                        "⬇️ Download Processed Image",
-                        buffer.tobytes(),
-                        file_name="processed_photo.png"
-                    )
+                    st.download_button("⬇️ Download Processed Image",
+                                       buffer.tobytes(),
+                                       file_name="processed_photo.png")
 
     # -------------------------
-    # VIDEO UPLOAD & PROCESSING
+    # Video processing
     # -------------------------
     if upload_type == "Video":
         uploaded_file = st.file_uploader("📂 Choose a video...", type=["mp4", "mov", "avi"])
         if uploaded_file is not None:
-            st.session_state.uploaded_file = uploaded_file
-            st.session_state.file_type = "video"
-            
             tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
             tfile.write(uploaded_file.read())
             tfile.flush()
             st.session_state.temp_video_path = tfile.name
             st.video(tfile.name)
-            st.caption("Preview of the uploaded video before processing.")
+            st.caption("Preview of uploaded video before processing.")
 
             if st.button("▶️ Start Detection"):
                 cap = cv2.VideoCapture(tfile.name)
@@ -157,15 +150,12 @@ if st.session_state.params_submitted:
                 out_writer.release()
                 st.session_state.processed_video = out_path
 
-            # Show processed video if exists
-            if st.session_state.processed_video:
+            if st.session_state.processed_video is not None:
                 st.subheader("🎬 Processed Video")
                 st.video(st.session_state.processed_video)
                 if st.button("💾 Save Processed Video"):
                     with open(st.session_state.processed_video, "rb") as f:
-                        st.download_button(
-                            "⬇️ Download Processed Video",
-                            data=f.read(),
-                            file_name="processed_video.mp4",
-                            mime="video/mp4"
-                        )
+                        st.download_button("⬇️ Download Processed Video",
+                                           data=f.read(),
+                                           file_name="processed_video.mp4",
+                                           mime="video/mp4")
