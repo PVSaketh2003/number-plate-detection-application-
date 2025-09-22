@@ -22,27 +22,38 @@ def detect_numberplate(frame, plate_cascade, scale_factor, min_neighbors):
 # -------------------------
 # Streamlit UI
 # -------------------------
-st.title("Number Plate Detection App 🚗")
+st.set_page_config(page_title="Russian Number Plate Detection", layout="wide")
+st.title("🚗 Russian Number Plate Detection")
+
+# --- User Guide ---
+with st.expander("📖 How to use this app", expanded=True):
+    st.markdown("""
+    1. **Select whether you want to process a photo or video**.  
+    2. **Adjust settings** in the sidebar.  
+    3. **Upload the file** using the uploader.  
+    4. Click **Start Processing** to detect number plates frame by frame.  
+    5. After processing, download the processed result directly.  
+    """)
 
 # Sidebar options
 st.sidebar.header("⚙️ Detection Settings")
 
-resize_scale = st.sidebar.slider(
-    "Resize Scale", 0.1, 1.0, 0.5, 0.1,
+resize_scale = st.sidebar.number_input(
+    "🖼️ Resize Scale", min_value=0.1, max_value=1.0, value=0.5, step=0.1,
     help="Scales down frames before detection to speed up processing; smaller values are faster but less accurate."
 )
-scale_factor = st.sidebar.slider(
-    "Scale Factor", 1.01, 1.5, 1.1, 0.01,
-    help="Parameter specifying how much the image size is reduced at each image scale."
+scale_factor = st.sidebar.number_input(
+    "📏 Scale Factor", min_value=1.01, max_value=1.5, value=1.1, step=0.01,
+    help="Specifies how much the image size is reduced at each image scale; smaller = more accurate, slower."
 )
-min_neighbors = st.sidebar.slider(
-    "Min Neighbors", 1, 10, 5, 1,
-    help="Specifies how many neighbors each candidate rectangle should have to retain it."
+min_neighbors = st.sidebar.number_input(
+    "🔍 Min Neighbors", min_value=1, max_value=15, value=5, step=1,
+    help="Specifies how many neighbors each rectangle should have to retain it; higher = stricter detection."
 )
 
 # File uploader
-file_type = st.radio("Choose what to upload:", ("Image", "Video"), index=None)
-uploaded_file = st.file_uploader("Upload file", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
+file_type = st.radio("Select upload type:", ["Image", "Video"], index=None)
+uploaded_file = st.file_uploader("📂 Upload file", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
 
 # Load cascade
 plate_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_russian_plate_number.xml")
@@ -65,11 +76,11 @@ if uploaded_file and file_type == "Image":
              caption="Processed Photo", use_container_width=True)
 
     # Save option
-    if st.button("Save Image"):
+    if st.button("💾 Save Processed Image"):
         success, buffer = cv2.imencode(".jpg", processed_img)
         if success:
             st.download_button(
-                label="Download Processed Image",
+                label="⬇️ Download Image",
                 data=buffer.tobytes(),
                 file_name="processed_image.jpg",
                 mime="image/jpeg"
@@ -121,11 +132,12 @@ if uploaded_file and file_type == "Video":
     with open(out_path, "rb") as f:
         video_bytes = f.read()
 
+    st.subheader("🎬 Processed Video")
     st.video(video_bytes)
 
-    if st.button("Save Video"):
+    if st.button("💾 Save Processed Video"):
         st.download_button(
-            label="Download Processed Video",
+            label="⬇️ Download Video",
             data=video_bytes,
             file_name="processed_video.mp4",
             mime="video/mp4"
