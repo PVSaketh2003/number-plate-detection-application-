@@ -20,7 +20,7 @@ with st.expander("📖 How to use this app", expanded=True):
     """)
 
 # --- Session State ---
-for key in ["uploaded_file", "out_path", "processing_started", "file_type", "processed_img", "processed_video"]:
+for key in ["uploaded_file", "original_img", "processed_img", "temp_video_path", "processed_video", "file_type"]:
     if key not in st.session_state:
         st.session_state[key] = None
 
@@ -29,28 +29,27 @@ st.sidebar.header("⚙️ Detection Settings (Mandatory)")
 
 resize_scale = st.sidebar.number_input(
     "🖼️ Resize Scale (0.1 – 1.0)",
-    min_value=0.1, max_value=1.0, step=0.1,
-    value=None, format="%.2f"
+    min_value=0.1, max_value=1.0, step=0.01,
+    format="%.2f"
 )
 st.sidebar.caption("Scales down frames before detection; smaller = faster but less accurate.")
 
 scale_factor = st.sidebar.number_input(
     "📏 Scale Factor (1.01 – 1.5)",
     min_value=1.01, max_value=1.5, step=0.01,
-    value=None, format="%.2f"
+    format="%.2f"
 )
 st.sidebar.caption("Controls pyramid scaling; smaller = more accurate but slower.")
 
 min_neighbors = st.sidebar.number_input(
     "🔍 Min Neighbors (1 – 15)",
-    min_value=1, max_value=15, step=1,
-    value=None
+    min_value=1, max_value=15, step=1
 )
 st.sidebar.caption("Sets how many nearby detections are required; higher = stricter detection.")
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 Reset App"):
-    for key in ["uploaded_file", "out_path", "processing_started", "file_type", "processed_img", "processed_video"]:
+    for key in ["uploaded_file", "original_img", "processed_img", "temp_video_path", "processed_video", "file_type"]:
         st.session_state[key] = None
     st.info("✅ Reset successful. Please upload a new file to start again.")
     st.stop()
@@ -66,7 +65,7 @@ upload_type = st.radio("Select upload type:", ["Photo", "Video"], index=None)
 # --- Haarcascade classifier ---
 number_plate = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_russian_plate_number.xml")
 
-# --- Object Detection Function (Your Logic Intact) ---
+# --- Object Detection Function (Logic unchanged) ---
 def detect_numberplate(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
@@ -78,7 +77,7 @@ def detect_numberplate(img):
     )
     for (x, y, w, h) in plates:
         cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
-    return img
+    return img, len(plates)
 
 # -------------------------
 # PHOTO UPLOAD & PROCESSING
@@ -96,18 +95,19 @@ if upload_type == "Photo":
             st.stop()
         
         st.session_state.original_img = img
+        st.image(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), caption="Uploaded Photo", use_container_width=True)
 
         if st.button("▶️ Start Detection"):
             # Resize for detection
             small_img = cv2.resize(img, (0,0), fx=resize_scale, fy=resize_scale)
-            processed_small = detect_numberplate(small_img.copy())
+            processed_small, count = detect_numberplate(small_img.copy())
             processed_img = cv2.resize(processed_small, (img.shape[1], img.shape[0]))
             st.session_state.processed_img = processed_img
+            st.session_state.detect_count = count
 
-        # Show processed image if exists
         if st.session_state.processed_img is not None:
             st.image(cv2.cvtColor(st.session_state.processed_img, cv2.COLOR_BGR2RGB),
-                     caption="Processed Photo", use_container_width=True)
+                     caption=f"Processed Photo - Plates Detected: {st.session_state.detect_count}", use_container_width=True)
             if st.button("💾 Save Processed Image"):
                 _, buffer = cv2.imencode(".png", st.session_state.processed_img)
                 st.download_button(
@@ -115,12 +115,13 @@ if upload_type == "Photo":
                     buffer.tobytes(),
                     file_name="processed_photo.png"
                 )
-            
+
             if st.button("🔄 Re-run Detection with New Parameters"):
                 small_img = cv2.resize(st.session_state.original_img, (0,0), fx=resize_scale, fy=resize_scale)
-                processed_small = detect_numberplate(small_img.copy())
+                processed_small, count = detect_numberplate(small_img.copy())
                 processed_img = cv2.resize(processed_small, (st.session_state.original_img.shape[1], st.session_state.original_img.shape[0]))
                 st.session_state.processed_img = processed_img
+                st.session_state.detect_count = count
                 st.experimental_rerun()
 
 # -------------------------
@@ -163,7 +164,7 @@ if upload_type == "Video":
                     break
                 frame_count += 1
                 small_frame = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
-                processed_small = detect_numberplate(small_frame.copy())
+                processed_small, _ = detect_numberplate(small_frame.copy())
                 processed_frame = cv2.resize(processed_small, (width, height))
                 out_writer.write(processed_frame)
 
@@ -176,7 +177,6 @@ if upload_type == "Video":
             out_writer.release()
             st.session_state.processed_video = out_path
 
-        # Show processed video if exists
         if st.session_state.processed_video:
             st.subheader("🎬 Processed Video")
             st.video(st.session_state.processed_video)
@@ -209,7 +209,7 @@ if upload_type == "Video":
                         break
                     frame_count += 1
                     small_frame = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
-                    processed_small = detect_numberplate(small_frame.copy())
+                    processed_small, _ = detect_numberplate(small_frame.copy())
                     processed_frame = cv2.resize(processed_small, (width, height))
                     out_writer.write(processed_frame)
 
