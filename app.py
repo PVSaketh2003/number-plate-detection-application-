@@ -15,41 +15,42 @@ with st.expander("📖 How to use this app", expanded=True):
     1. **Select whether you want to process a photo or video**.  
     2. **Adjust settings** in the sidebar.  
     3. **Upload the file** using the uploader.  
-    4. Click **Start Processing** to detect number plates frame by frame.  
+    4. Click **Start Detection** to detect number plates frame by frame.  
     5. After processing, download the processed result directly or change parameters and re-run detection.  
     """)
 
 # --- Session State ---
-for key in ["uploaded_file", "original_img", "processed_img", "temp_video_path", "processed_video", "file_type"]:
+for key in ["uploaded_file", "original_img", "processed_img", "processed_video", "file_type", "temp_video_path"]:
     if key not in st.session_state:
         st.session_state[key] = None
 
 # --- Sidebar Controls ---
 st.sidebar.header("⚙️ Detection Settings (Mandatory)")
 
-resize_scale = st.sidebar.number_input(
+resize_scale = st.sidebar.selectbox(
     "🖼️ Resize Scale (0.1 – 1.0)",
-    min_value=0.1, max_value=1.0, step=0.01,
-    format="%.2f"
+    options=[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
+    index=None
 )
 st.sidebar.caption("Scales down frames before detection; smaller = faster but less accurate.")
 
 scale_factor = st.sidebar.number_input(
     "📏 Scale Factor (1.01 – 1.5)",
     min_value=1.01, max_value=1.5, step=0.01,
-    format="%.2f"
+    value=None, format="%.2f"
 )
 st.sidebar.caption("Controls pyramid scaling; smaller = more accurate but slower.")
 
 min_neighbors = st.sidebar.number_input(
-    "🔍 Min Neighbors (1 – 15)",
-    min_value=1, max_value=15, step=1
+    "🔍 Min Neighbors (1 – 10)",
+    min_value=1, max_value=10, step=1,
+    value=None
 )
 st.sidebar.caption("Sets how many nearby detections are required; higher = stricter detection.")
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 Reset App"):
-    for key in ["uploaded_file", "original_img", "processed_img", "temp_video_path", "processed_video", "file_type"]:
+    for key in ["uploaded_file", "original_img", "processed_img", "processed_video", "file_type", "temp_video_path"]:
         st.session_state[key] = None
     st.info("✅ Reset successful. Please upload a new file to start again.")
     st.stop()
@@ -65,7 +66,7 @@ upload_type = st.radio("Select upload type:", ["Photo", "Video"], index=None)
 # --- Haarcascade classifier ---
 number_plate = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_russian_plate_number.xml")
 
-# --- Object Detection Function (Logic unchanged) ---
+# --- Object Detection Function (Your Logic Intact) ---
 def detect_numberplate(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
@@ -77,7 +78,7 @@ def detect_numberplate(img):
     )
     for (x, y, w, h) in plates:
         cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
-    return img, len(plates)
+    return img
 
 # -------------------------
 # PHOTO UPLOAD & PROCESSING
@@ -95,19 +96,17 @@ if upload_type == "Photo":
             st.stop()
         
         st.session_state.original_img = img
-        st.image(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), caption="Uploaded Photo", use_container_width=True)
 
         if st.button("▶️ Start Detection"):
-            # Resize for detection
             small_img = cv2.resize(img, (0,0), fx=resize_scale, fy=resize_scale)
-            processed_small, count = detect_numberplate(small_img.copy())
+            processed_small = detect_numberplate(small_img.copy())
             processed_img = cv2.resize(processed_small, (img.shape[1], img.shape[0]))
             st.session_state.processed_img = processed_img
-            st.session_state.detect_count = count
 
+        # Show processed image if exists
         if st.session_state.processed_img is not None:
             st.image(cv2.cvtColor(st.session_state.processed_img, cv2.COLOR_BGR2RGB),
-                     caption=f"Processed Photo - Plates Detected: {st.session_state.detect_count}", use_container_width=True)
+                     caption="Processed Photo", use_container_width=True)
             if st.button("💾 Save Processed Image"):
                 _, buffer = cv2.imencode(".png", st.session_state.processed_img)
                 st.download_button(
@@ -115,13 +114,12 @@ if upload_type == "Photo":
                     buffer.tobytes(),
                     file_name="processed_photo.png"
                 )
-
+            
             if st.button("🔄 Re-run Detection with New Parameters"):
                 small_img = cv2.resize(st.session_state.original_img, (0,0), fx=resize_scale, fy=resize_scale)
-                processed_small, count = detect_numberplate(small_img.copy())
+                processed_small = detect_numberplate(small_img.copy())
                 processed_img = cv2.resize(processed_small, (st.session_state.original_img.shape[1], st.session_state.original_img.shape[0]))
                 st.session_state.processed_img = processed_img
-                st.session_state.detect_count = count
                 st.experimental_rerun()
 
 # -------------------------
@@ -158,16 +156,18 @@ if upload_type == "Video":
             progress_bar = st.progress(0)
             frame_count = 0
 
+            # Process every frame
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
                 frame_count += 1
                 small_frame = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
-                processed_small, _ = detect_numberplate(small_frame.copy())
+                processed_small = detect_numberplate(small_frame.copy())
                 processed_frame = cv2.resize(processed_small, (width, height))
                 out_writer.write(processed_frame)
 
+                # Update preview every 3 frames
                 if frame_count % 3 == 0:
                     stframe.image(cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB),
                                   channels="RGB", use_container_width=True)
@@ -177,6 +177,7 @@ if upload_type == "Video":
             out_writer.release()
             st.session_state.processed_video = out_path
 
+        # Show processed video if exists
         if st.session_state.processed_video:
             st.subheader("🎬 Processed Video")
             st.video(st.session_state.processed_video)
@@ -209,7 +210,7 @@ if upload_type == "Video":
                         break
                     frame_count += 1
                     small_frame = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
-                    processed_small, _ = detect_numberplate(small_frame.copy())
+                    processed_small = detect_numberplate(small_frame.copy())
                     processed_frame = cv2.resize(processed_small, (width, height))
                     out_writer.write(processed_frame)
 
