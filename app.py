@@ -3,6 +3,7 @@ import streamlit as st
 import cv2
 import numpy as np
 import tempfile
+import os
 
 # --- App UI ---
 st.set_page_config(
@@ -72,133 +73,164 @@ if st.sidebar.button("✅ Submit Parameters"):
 
 # --- Only show upload type selection after parameters submitted ---
 if st.session_state.params_submitted:
-    upload_type = st.radio("Select upload type:", ["Photo", "Video"], horizontal=True)
+    try:
+        upload_type = st.radio("Select upload type:", ["Photo", "Video"], horizontal=True)
 
-    # Haarcascade classifier
-    number_plate = cv2.CascadeClassifier(
-        cv2.data.haarcascades + "haarcascade_russian_plate_number.xml"
-    )
-
-    # --- Object detection function ---
-    def detect_numberplate(img):
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        plates = number_plate.detectMultiScale(
-            gray,
-            scaleFactor=st.session_state.scale_factor,
-            minNeighbors=st.session_state.min_neighbors
+        # Haarcascade classifier
+        number_plate = cv2.CascadeClassifier(
+            cv2.data.haarcascades + "haarcascade_russian_plate_number.xml"
         )
-        for (x, y, w, h) in plates:
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
-        return img
+        if number_plate.empty():
+            st.error("Failed to load Haarcascade classifier for Russian number plates.")
+            st.stop()
 
-    # -------------------------
-    # Photo processing
-    # -------------------------
-    if upload_type == "Photo":
-        uploaded_file = st.file_uploader("📂 Choose a photo...", type=["jpg", "jpeg", "png"])
-        if uploaded_file is not None:
-            file_bytes = np.frombuffer(uploaded_file.read(), np.uint8)
-            img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-            if img is None:
-                st.error("Could not read the uploaded image.")
-                st.stop()
-            st.session_state.original_img = img
-
-            if st.button("▶️ Start Detection"):
-                small_img = cv2.resize(
-                    img, (0, 0),
-                    fx=st.session_state.resize_scale,
-                    fy=st.session_state.resize_scale
+        # --- Object detection function ---
+        def detect_numberplate(img):
+            try:
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                plates = number_plate.detectMultiScale(
+                    gray,
+                    scaleFactor=st.session_state.scale_factor,
+                    minNeighbors=st.session_state.min_neighbors
                 )
-                processed_small = detect_numberplate(small_img.copy())
-                processed_img = cv2.resize(processed_small, (img.shape[1], img.shape[0]))
-                st.session_state.processed_img = processed_img
+                for (x, y, w, h) in plates:
+                    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
+                return img
+            except Exception as e:
+                st.error(f"Error during detection: {e}")
+                return img
 
-            if st.session_state.processed_img is not None:
-                st.image(
-                    cv2.cvtColor(st.session_state.processed_img, cv2.COLOR_BGR2RGB),
-                    caption="Processed Photo", use_container_width=True
-                )
-                if st.button("💾 Save Processed Image"):
-                    _, buffer = cv2.imencode(".png", st.session_state.processed_img)
-                    st.download_button(
-                        "⬇️ Download Processed Image",
-                        buffer.tobytes(),
-                        file_name="processed_photo.png"
-                    )
+        # -------------------------
+        # Photo processing
+        # -------------------------
+        if upload_type == "Photo":
+            uploaded_file = st.file_uploader("📂 Choose a photo...", type=["jpg", "jpeg", "png"])
+            if uploaded_file is not None:
+                try:
+                    file_bytes = np.frombuffer(uploaded_file.read(), np.uint8)
+                    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+                    if img is None:
+                        st.error("❌ Could not read the uploaded image.")
+                        st.stop()
+                    st.session_state.original_img = img
 
-    # -------------------------
-    # Video processing
-    # -------------------------
-    if upload_type == "Video":
-        uploaded_file = st.file_uploader("📂 Choose a video...", type=["mp4", "mov", "avi"])
-        if uploaded_file is not None:
-            tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-            tfile.write(uploaded_file.read())
-            tfile.flush()
-            st.session_state.temp_video_path = tfile.name
-            st.video(tfile.name)
-            st.caption("Preview of uploaded video before processing.")
-
-            if st.button("▶️ Start Detection"):
-                cap = cv2.VideoCapture(tfile.name)
-                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                fps = int(cap.get(cv2.CAP_PROP_FPS)) or 25
-                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-                out_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                out_writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
-                if not out_writer.isOpened():
-                    st.error("Failed to initialize video writer.")
-                    st.stop()
-
-                stframe = st.empty()
-                progress_bar = st.progress(0)
-                frame_count_text = st.empty()
-                frame_count = 0
-
-                while cap.isOpened():
-                    ret, frame = cap.read()
-                    if not ret:
-                        break
-                    frame_count += 1
-                    small_frame = cv2.resize(
-                        frame, (0, 0),
-                        fx=st.session_state.resize_scale,
-                        fy=st.session_state.resize_scale
-                    )
-                    processed_small = detect_numberplate(small_frame.copy())
-                    processed_frame = cv2.resize(processed_small, (width, height))
-                    out_writer.write(processed_frame)
-
-                    if frame_count % 3 == 0:
-                        stframe.image(
-                            cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB),
-                            channels="RGB", use_container_width=True
+                    if st.button("▶️ Start Detection"):
+                        small_img = cv2.resize(
+                            img, (0, 0),
+                            fx=st.session_state.resize_scale,
+                            fy=st.session_state.resize_scale
                         )
+                        processed_small = detect_numberplate(small_img.copy())
+                        processed_img = cv2.resize(processed_small, (img.shape[1], img.shape[0]))
+                        st.session_state.processed_img = processed_img
 
-                    # Update progress bar
-                    progress_bar.progress(min(frame_count / total_frames, 1.0))
-                    # Update processed frame count BELOW the bar
-                    frame_count_text.markdown(
-                        f"<b>Processed Frames:</b> {frame_count} / {total_frames}",
-                        unsafe_allow_html=True
-                    )
-
-                cap.release()
-                out_writer.release()
-                st.session_state.processed_video = out_path
-
-            if st.session_state.processed_video is not None:
-                st.subheader("🎬 Processed Video")
-                st.video(st.session_state.processed_video)
-                if st.button("💾 Save Processed Video"):
-                    with open(st.session_state.processed_video, "rb") as f:
-                        st.download_button(
-                            "⬇️ Download Processed Video",
-                            data=f.read(),
-                            file_name="processed_video.mp4",
-                            mime="video/mp4"
+                    if st.session_state.processed_img is not None:
+                        st.image(
+                            cv2.cvtColor(st.session_state.processed_img, cv2.COLOR_BGR2RGB),
+                            caption="Processed Photo", use_container_width=True
                         )
+                        if st.button("💾 Save Processed Image"):
+                            _, buffer = cv2.imencode(".png", st.session_state.processed_img)
+                            st.download_button(
+                                "⬇️ Download Processed Image",
+                                buffer.tobytes(),
+                                file_name="processed_photo.png"
+                            )
+                except Exception as e:
+                    st.error(f"Unexpected error while processing photo: {e}")
+            else:
+                st.info("📂 Please upload a photo to continue.")
+
+        # -------------------------
+        # Video processing
+        # -------------------------
+        if upload_type == "Video":
+            uploaded_file = st.file_uploader("📂 Choose a video...", type=["mp4", "mov", "avi"])
+            if uploaded_file is not None:
+                try:
+                    tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+                    tfile.write(uploaded_file.read())
+                    tfile.flush()
+                    st.session_state.temp_video_path = tfile.name
+                    st.video(tfile.name)
+                    st.caption("Preview of uploaded video before processing.")
+
+                    if st.button("▶️ Start Detection"):
+                        try:
+                            cap = cv2.VideoCapture(tfile.name)
+                            if not cap.isOpened():
+                                st.error("❌ Failed to open uploaded video.")
+                                st.stop()
+
+                            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                            fps = int(cap.get(cv2.CAP_PROP_FPS)) or 25
+                            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+                            out_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
+                            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                            out_writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
+                            if not out_writer.isOpened():
+                                st.error("❌ Failed to initialize video writer.")
+                                st.stop()
+
+                            stframe = st.empty()
+                            progress_bar = st.progress(0)
+                            frame_count_text = st.empty()
+                            frame_count = 0
+
+                            while cap.isOpened():
+                                ret, frame = cap.read()
+                                if not ret:
+                                    break
+                                frame_count += 1
+                                small_frame = cv2.resize(
+                                    frame, (0, 0),
+                                    fx=st.session_state.resize_scale,
+                                    fy=st.session_state.resize_scale
+                                )
+                                processed_small = detect_numberplate(small_frame.copy())
+                                processed_frame = cv2.resize(processed_small, (width, height))
+                                out_writer.write(processed_frame)
+
+                                if frame_count % 3 == 0:
+                                    stframe.image(
+                                        cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB),
+                                        channels="RGB", use_container_width=True
+                                    )
+
+                                # Update progress bar
+                                progress_bar.progress(min(frame_count / total_frames, 1.0))
+                                # Update processed frame count BELOW the bar
+                                frame_count_text.markdown(
+                                    f"<b>Processed Frames:</b> {frame_count} / {total_frames}",
+                                    unsafe_allow_html=True
+                                )
+
+                            cap.release()
+                            out_writer.release()
+                            st.session_state.processed_video = out_path
+                        except Exception as e:
+                            st.error(f"Error while processing video: {e}")
+
+                    if st.session_state.processed_video is not None:
+                        st.subheader("🎬 Processed Video")
+                        st.video(st.session_state.processed_video)
+                        if st.button("💾 Save Processed Video"):
+                            try:
+                                with open(st.session_state.processed_video, "rb") as f:
+                                    st.download_button(
+                                        "⬇️ Download Processed Video",
+                                        data=f.read(),
+                                        file_name="processed_video.mp4",
+                                        mime="video/mp4"
+                                    )
+                            except Exception as e:
+                                st.error(f"Error while saving video: {e}")
+                except Exception as e:
+                    st.error(f"Unexpected error while uploading video: {e}")
+            else:
+                st.info("📂 Please upload a video to continue.")
+
+    except Exception as e:
+        st.error(f"Unexpected error in app execution: {e}")
