@@ -16,6 +16,12 @@ with st.expander("📖 How to use this app", expanded=True):
     3. **Upload the file** using the uploader.  
     4. Click **Start Detection** to detect number plates frame by frame.  
     5. After processing, download the processed result directly.  
+
+    ---
+    ### ⚙️ Parameter Explanations (Simple)
+    - 🖼️ **Resize Scale** → Makes the photo/video smaller before checking. Small = faster but less clear.  
+    - 📏 **Scale Factor** → Decides how slowly the system shrinks the picture when searching. Small = more accurate but slower.  
+    - 🔍 **Min Neighbors** → Says how many times a plate must appear nearby to be real. Bigger = fewer mistakes, but may miss some.  
     """)
 
 # --- Session State ---
@@ -33,20 +39,26 @@ st.sidebar.header("⚙️ Detection Settings (Mandatory)")
 resize_scale_input = st.sidebar.selectbox(
     "🖼️ Resize Scale (0.1 – 1.0)",
     options=[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
-    help="Scales down frames before detection; smaller = faster but less accurate."
+    help="Make the picture smaller before checking. Smaller = faster, but can miss details."
 )
 
 scale_factor_input = st.sidebar.number_input(
     "📏 Scale Factor (1.01 – 1.5)",
     min_value=1.01, max_value=1.5, step=0.01, format="%.2f",
-    help="Controls pyramid scaling; smaller = more accurate but slower."
+    help="Tells how much the picture shrinks each time while searching. Small value = better detection but slower."
 )
 
 min_neighbors_input = st.sidebar.number_input(
     "🔍 Min Neighbors (1 – 10)",
     min_value=1, max_value=10, step=1,
-    help="Sets how many nearby detections are required; higher = stricter detection."
+    help="How many times the plate must be found nearby to accept it. Bigger = stricter."
 )
+
+# --- One-liner Explanations (very simple) ---
+st.sidebar.markdown("---")
+st.sidebar.caption("🖼️ **Resize Scale** → Makes the photo/video smaller before checking. Small = faster but less clear.")
+st.sidebar.caption("📏 **Scale Factor** → Decides how slowly the system shrinks the picture when searching. Small = more accurate but slower.")
+st.sidebar.caption("🔍 **Min Neighbors** → Says how many times a plate must appear nearby to be real. Bigger = fewer mistakes, but may miss some.")
 
 if st.sidebar.button("✅ Submit Parameters"):
     st.session_state.params_submitted = True
