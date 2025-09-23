@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import tempfile
 import os
+import math
 
 # --- App UI ---
 st.set_page_config(
@@ -80,6 +81,7 @@ if st.session_state.params_submitted:
         number_plate = cv2.CascadeClassifier(
             cv2.data.haarcascades + "haarcascade_russian_plate_number.xml"
         )
+        # check the cascade loaded correctly
         if number_plate.empty():
             st.error("Failed to load Haarcascade classifier for Russian number plates.")
             st.stop()
@@ -98,6 +100,7 @@ if st.session_state.params_submitted:
                 return img
             except Exception as e:
                 st.error(f"Error during detection: {e}")
+                # return the original image so UI can continue
                 return img
 
         # -------------------------
@@ -107,22 +110,26 @@ if st.session_state.params_submitted:
             uploaded_file = st.file_uploader("📂 Choose a photo...", type=["jpg", "jpeg", "png"])
             if uploaded_file is not None:
                 try:
+                    # read once and decode
                     file_bytes = np.frombuffer(uploaded_file.read(), np.uint8)
                     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
                     if img is None:
-                        st.error("❌ Could not read the uploaded image.")
+                        st.error("Could not read the uploaded image.")
                         st.stop()
                     st.session_state.original_img = img
 
                     if st.button("▶️ Start Detection"):
-                        small_img = cv2.resize(
-                            img, (0, 0),
-                            fx=st.session_state.resize_scale,
-                            fy=st.session_state.resize_scale
-                        )
-                        processed_small = detect_numberplate(small_img.copy())
-                        processed_img = cv2.resize(processed_small, (img.shape[1], img.shape[0]))
-                        st.session_state.processed_img = processed_img
+                        try:
+                            small_img = cv2.resize(
+                                img, (0, 0),
+                                fx=st.session_state.resize_scale,
+                                fy=st.session_state.resize_scale
+                            )
+                            processed_small = detect_numberplate(small_img.copy())
+                            processed_img = cv2.resize(processed_small, (img.shape[1], img.shape[0]))
+                            st.session_state.processed_img = processed_img
+                        except Exception as e:
+                            st.error(f"Error while processing image: {e}")
 
                     if st.session_state.processed_img is not None:
                         st.image(
@@ -130,12 +137,15 @@ if st.session_state.params_submitted:
                             caption="Processed Photo", use_container_width=True
                         )
                         if st.button("💾 Save Processed Image"):
-                            _, buffer = cv2.imencode(".png", st.session_state.processed_img)
-                            st.download_button(
-                                "⬇️ Download Processed Image",
-                                buffer.tobytes(),
-                                file_name="processed_photo.png"
-                            )
+                            try:
+                                _, buffer = cv2.imencode(".png", st.session_state.processed_img)
+                                st.download_button(
+                                    "⬇️ Download Processed Image",
+                                    buffer.tobytes(),
+                                    file_name="processed_photo.png"
+                                )
+                            except Exception as e:
+                                st.error(f"Error while saving processed image: {e}")
                 except Exception as e:
                     st.error(f"Unexpected error while processing photo: {e}")
             else:
@@ -148,6 +158,7 @@ if st.session_state.params_submitted:
             uploaded_file = st.file_uploader("📂 Choose a video...", type=["mp4", "mov", "avi"])
             if uploaded_file is not None:
                 try:
+                    # save upload to a temp file (read once)
                     tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
                     tfile.write(uploaded_file.read())
                     tfile.flush()
@@ -159,19 +170,47 @@ if st.session_state.params_submitted:
                         try:
                             cap = cv2.VideoCapture(tfile.name)
                             if not cap.isOpened():
-                                st.error("❌ Failed to open uploaded video.")
+                                st.error("Failed to open uploaded video.")
                                 st.stop()
 
-                            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                            fps = int(cap.get(cv2.CAP_PROP_FPS)) or 25
-                            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                            # try to get metadata, but guard against zeros / invalid values
+                            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+                            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+                            fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+                            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+
+                            # If metadata is missing/invalid, attempt to read first frame to infer
+                            if width <= 0 or height <= 0 or fps <= 0 or total_frames <= 0:
+                                # attempt to read a single frame to infer width/height
+                                ret_first, frame_first = cap.read()
+                                if ret_first and frame_first is not None:
+                                    h_f, w_f = frame_first.shape[:2]
+                                    # only replace if previous values invalid
+                                    if width <= 0:
+                                        width = int(w_f)
+                                    if height <= 0:
+                                        height = int(h_f)
+                                    # put the frame back by rewinding
+                                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                                # fps fallback
+                                if fps <= 0:
+                                    fps = 25.0
+                                # total_frames fallback
+                                if total_frames <= 0:
+                                    # avoid division by zero in progress updates
+                                    total_frames = 1
+
+                            # ensure width/height are positive ints
+                            width = int(width) if int(width) > 0 else int(640)
+                            height = int(height) if int(height) > 0 else int(480)
+                            fps = float(fps) if float(fps) > 0 else 25.0
 
                             out_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
                             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
                             out_writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
                             if not out_writer.isOpened():
-                                st.error("❌ Failed to initialize video writer.")
+                                st.error("Failed to initialize video writer.")
+                                cap.release()
                                 st.stop()
 
                             stframe = st.empty()
@@ -179,28 +218,43 @@ if st.session_state.params_submitted:
                             frame_count_text = st.empty()
                             frame_count = 0
 
+                            # loop through frames
                             while cap.isOpened():
                                 ret, frame = cap.read()
                                 if not ret:
                                     break
                                 frame_count += 1
-                                small_frame = cv2.resize(
-                                    frame, (0, 0),
-                                    fx=st.session_state.resize_scale,
-                                    fy=st.session_state.resize_scale
-                                )
-                                processed_small = detect_numberplate(small_frame.copy())
-                                processed_frame = cv2.resize(processed_small, (width, height))
-                                out_writer.write(processed_frame)
+                                try:
+                                    small_frame = cv2.resize(
+                                        frame, (0, 0),
+                                        fx=st.session_state.resize_scale,
+                                        fy=st.session_state.resize_scale
+                                    )
+                                    processed_small = detect_numberplate(small_frame.copy())
+                                    processed_frame = cv2.resize(processed_small, (width, height))
+                                    out_writer.write(processed_frame)
+                                except Exception as e:
+                                    # if a single frame fails, log and continue
+                                    st.error(f"Error processing frame {frame_count}: {e}")
+                                    continue
 
                                 if frame_count % 3 == 0:
-                                    stframe.image(
-                                        cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB),
-                                        channels="RGB", use_container_width=True
-                                    )
+                                    try:
+                                        stframe.image(
+                                            cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB),
+                                            channels="RGB", use_container_width=True
+                                        )
+                                    except Exception:
+                                        # non-fatal; continue
+                                        pass
 
-                                # Update progress bar
-                                progress_bar.progress(min(frame_count / total_frames, 1.0))
+                                # Update progress bar (guard division by zero)
+                                try:
+                                    progress_value = min(frame_count / max(total_frames, 1), 1.0)
+                                except Exception:
+                                    progress_value = min(frame_count / 1.0, 1.0)
+                                progress_bar.progress(progress_value)
+
                                 # Update processed frame count BELOW the bar
                                 frame_count_text.markdown(
                                     f"<b>Processed Frames:</b> {frame_count} / {total_frames}",
