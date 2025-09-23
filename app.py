@@ -175,7 +175,7 @@ if st.session_state.params_submitted:
                     if frame_count % 3 == 0:
                         stframe.image(
                             cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB),
-                            channels="RGB", use_column_width=True
+                            channels="RGB", use_container_width=True
                         )
                     progress_bar.progress(min(frame_count / total_frames, 1.0))
 
