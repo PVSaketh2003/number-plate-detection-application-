@@ -3,7 +3,6 @@ import streamlit as st
 import cv2
 import numpy as np
 import tempfile
-import os
 
 # --- App UI ---
 st.set_page_config(page_title="Russian Number Plate Detection", layout="wide")
@@ -20,7 +19,11 @@ with st.expander("📖 How to use this app", expanded=True):
     """)
 
 # --- Session State ---
-for key in ["params_submitted", "uploaded_file", "original_img", "processed_img", "processed_video", "file_type", "temp_video_path", "resize_scale", "scale_factor", "min_neighbors"]:
+for key in [
+    "params_submitted", "uploaded_file", "original_img",
+    "processed_img", "processed_video", "file_type",
+    "temp_video_path", "resize_scale", "scale_factor", "min_neighbors"
+]:
     if key not in st.session_state:
         st.session_state[key] = None
 
@@ -28,19 +31,19 @@ for key in ["params_submitted", "uploaded_file", "original_img", "processed_img"
 st.sidebar.header("⚙️ Detection Settings (Mandatory)")
 
 resize_scale_input = st.sidebar.selectbox(
-    "🖼️ Resize Scale (0.1 – 1.0)", 
+    "🖼️ Resize Scale (0.1 – 1.0)",
     options=[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
     help="Scales down frames before detection; smaller = faster but less accurate."
 )
 
 scale_factor_input = st.sidebar.number_input(
-    "📏 Scale Factor (1.01 – 1.5)", 
+    "📏 Scale Factor (1.01 – 1.5)",
     min_value=1.01, max_value=1.5, step=0.01, format="%.2f",
     help="Controls pyramid scaling; smaller = more accurate but slower."
 )
 
 min_neighbors_input = st.sidebar.number_input(
-    "🔍 Min Neighbors (1 – 10)", 
+    "🔍 Min Neighbors (1 – 10)",
     min_value=1, max_value=10, step=1,
     help="Sets how many nearby detections are required; higher = stricter detection."
 )
@@ -57,12 +60,13 @@ if st.session_state.params_submitted:
     upload_type = st.radio("Select upload type:", ["Photo", "Video"])
 
     # Haarcascade classifier
-    number_plate = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_russian_plate_number.xml")
+    number_plate = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_russian_plate_number.xml"
+    )
 
-    # Object detection function (logic intact)
+    # --- Object detection function (YOUR LOGIC, unchanged) ---
     def detect_numberplate(img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        gray = cv2.equalizeHist(gray)
         plates = number_plate.detectMultiScale(
             gray,
             scaleFactor=st.session_state.scale_factor,
@@ -86,19 +90,27 @@ if st.session_state.params_submitted:
             st.session_state.original_img = img
 
             if st.button("▶️ Start Detection"):
-                small_img = cv2.resize(img, (0,0), fx=st.session_state.resize_scale, fy=st.session_state.resize_scale)
+                small_img = cv2.resize(
+                    img, (0, 0),
+                    fx=st.session_state.resize_scale,
+                    fy=st.session_state.resize_scale
+                )
                 processed_small = detect_numberplate(small_img.copy())
                 processed_img = cv2.resize(processed_small, (img.shape[1], img.shape[0]))
                 st.session_state.processed_img = processed_img
 
             if st.session_state.processed_img is not None:
-                st.image(cv2.cvtColor(st.session_state.processed_img, cv2.COLOR_BGR2RGB),
-                         caption="Processed Photo", use_container_width=True)
+                st.image(
+                    cv2.cvtColor(st.session_state.processed_img, cv2.COLOR_BGR2RGB),
+                    caption="Processed Photo", use_container_width=True
+                )
                 if st.button("💾 Save Processed Image"):
                     _, buffer = cv2.imencode(".png", st.session_state.processed_img)
-                    st.download_button("⬇️ Download Processed Image",
-                                       buffer.tobytes(),
-                                       file_name="processed_photo.png")
+                    st.download_button(
+                        "⬇️ Download Processed Image",
+                        buffer.tobytes(),
+                        file_name="processed_photo.png"
+                    )
 
     # -------------------------
     # Video processing
@@ -136,14 +148,20 @@ if st.session_state.params_submitted:
                     if not ret:
                         break
                     frame_count += 1
-                    small_frame = cv2.resize(frame, (0, 0), fx=st.session_state.resize_scale, fy=st.session_state.resize_scale)
+                    small_frame = cv2.resize(
+                        frame, (0, 0),
+                        fx=st.session_state.resize_scale,
+                        fy=st.session_state.resize_scale
+                    )
                     processed_small = detect_numberplate(small_frame.copy())
                     processed_frame = cv2.resize(processed_small, (width, height))
                     out_writer.write(processed_frame)
 
                     if frame_count % 3 == 0:
-                        stframe.image(cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB),
-                                      channels="RGB", use_container_width=True)
+                        stframe.image(
+                            cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB),
+                            channels="RGB", use_container_width=True
+                        )
                     progress_bar.progress(min(frame_count / total_frames, 1.0))
 
                 cap.release()
@@ -155,7 +173,9 @@ if st.session_state.params_submitted:
                 st.video(st.session_state.processed_video)
                 if st.button("💾 Save Processed Video"):
                     with open(st.session_state.processed_video, "rb") as f:
-                        st.download_button("⬇️ Download Processed Video",
-                                           data=f.read(),
-                                           file_name="processed_video.mp4",
-                                           mime="video/mp4")
+                        st.download_button(
+                            "⬇️ Download Processed Video",
+                            data=f.read(),
+                            file_name="processed_video.mp4",
+                            mime="video/mp4"
+                        )
