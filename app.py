@@ -5,8 +5,15 @@ import numpy as np
 import tempfile
 
 # --- App UI ---
-st.set_page_config(page_title="Russian Number Plate Detection", layout="wide")
-st.title("🚗 Russian Number Plate Detection")
+st.set_page_config(
+    page_title="Russian Number Plate Detection",
+    layout="wide",
+    page_icon="🚗",
+    initial_sidebar_state="expanded"
+)
+
+st.markdown("<h1 style='text-align: center; color: #FF4B4B;'>🚗 Russian Number Plate Detection</h1>", unsafe_allow_html=True)
+st.markdown("---")
 
 # --- User Guide ---
 with st.expander("📖 How to use this app", expanded=True):
@@ -16,12 +23,6 @@ with st.expander("📖 How to use this app", expanded=True):
     3. **Upload the file** using the uploader.  
     4. Click **Start Detection** to detect number plates frame by frame.  
     5. After processing, download the processed result directly.  
-
-    ---
-    ### ⚙️ Parameter Explanations (Simple)
-    - 🖼️ **Resize Scale** → Makes the photo/video smaller before checking. Small = faster but less clear.  
-    - 📏 **Scale Factor** → Decides how slowly the system shrinks the picture when searching. Small = more accurate but slower.  
-    - 🔍 **Min Neighbors** → Says how many times a plate must appear nearby to be real. Bigger = fewer mistakes, but may miss some.  
     """)
 
 # --- Session State ---
@@ -41,24 +42,26 @@ resize_scale_input = st.sidebar.selectbox(
     options=[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
     help="Make the picture smaller before checking. Smaller = faster, but can miss details."
 )
+if resize_scale_input:
+    st.sidebar.markdown(f"**🖼️ Resize Scale Explanation:** Makes the photo/video smaller before checking. Small = faster but less clear.")
 
 scale_factor_input = st.sidebar.number_input(
     "📏 Scale Factor (1.01 – 1.5)",
     min_value=1.01, max_value=1.5, step=0.01, format="%.2f",
     help="Tells how much the picture shrinks each time while searching. Small value = better detection but slower."
 )
+if scale_factor_input:
+    st.sidebar.markdown(f"**📏 Scale Factor Explanation:** Decides how slowly the system shrinks the picture when searching. Small = more accurate but slower.")
 
 min_neighbors_input = st.sidebar.number_input(
     "🔍 Min Neighbors (1 – 10)",
     min_value=1, max_value=10, step=1,
     help="How many times the plate must be found nearby to accept it. Bigger = stricter."
 )
+if min_neighbors_input:
+    st.sidebar.markdown(f"**🔍 Min Neighbors Explanation:** Says how many times a plate must appear nearby to be real. Bigger = fewer mistakes, but may miss some.")
 
-# --- One-liner Explanations (very simple) ---
 st.sidebar.markdown("---")
-st.sidebar.caption("🖼️ **Resize Scale** → Makes the photo/video smaller before checking. Small = faster but less clear.")
-st.sidebar.caption("📏 **Scale Factor** → Decides how slowly the system shrinks the picture when searching. Small = more accurate but slower.")
-st.sidebar.caption("🔍 **Min Neighbors** → Says how many times a plate must appear nearby to be real. Bigger = fewer mistakes, but may miss some.")
 
 if st.sidebar.button("✅ Submit Parameters"):
     st.session_state.params_submitted = True
@@ -69,14 +72,14 @@ if st.sidebar.button("✅ Submit Parameters"):
 
 # --- Only show upload type selection after parameters submitted ---
 if st.session_state.params_submitted:
-    upload_type = st.radio("Select upload type:", ["Photo", "Video"])
+    upload_type = st.radio("Select upload type:", ["Photo", "Video"], horizontal=True)
 
     # Haarcascade classifier
     number_plate = cv2.CascadeClassifier(
         cv2.data.haarcascades + "haarcascade_russian_plate_number.xml"
     )
 
-    # --- Object detection function (YOUR LOGIC, unchanged) ---
+    # --- Object detection function (logic unchanged) ---
     def detect_numberplate(img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         plates = number_plate.detectMultiScale(
@@ -114,7 +117,7 @@ if st.session_state.params_submitted:
             if st.session_state.processed_img is not None:
                 st.image(
                     cv2.cvtColor(st.session_state.processed_img, cv2.COLOR_BGR2RGB),
-                    caption="Processed Photo", use_container_width=True
+                    caption="Processed Photo", use_column_width=True
                 )
                 if st.button("💾 Save Processed Image"):
                     _, buffer = cv2.imencode(".png", st.session_state.processed_img)
@@ -172,7 +175,7 @@ if st.session_state.params_submitted:
                     if frame_count % 3 == 0:
                         stframe.image(
                             cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB),
-                            channels="RGB", use_container_width=True
+                            channels="RGB", use_column_width=True
                         )
                     progress_bar.progress(min(frame_count / total_frames, 1.0))
 
