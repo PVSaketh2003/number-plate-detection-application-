@@ -43,7 +43,7 @@ resize_scale_input = st.sidebar.selectbox(
     help="Make the picture smaller before checking. Smaller = faster, but can miss details."
 )
 if resize_scale_input:
-    st.sidebar.markdown(f"**🖼️ Resize Scale ** <br> Makes the photo/video smaller before checking. Small = faster but less clear.",unsafe_allow_html=True)
+    st.sidebar.markdown(f"<b>🖼️ Resize Scale</b> <br> Makes the photo/video smaller before checking. Small = faster but less clear.",unsafe_allow_html=True)
 
 scale_factor_input = st.sidebar.number_input(
     "📏 Scale Factor (1.01 – 1.5)",
@@ -51,7 +51,7 @@ scale_factor_input = st.sidebar.number_input(
     help="Tells how much the picture shrinks each time while searching. Small value = better detection but slower."
 )
 if scale_factor_input:
-    st.sidebar.markdown(f"**📏 Scale Factor ** <br> Decides how slowly the system shrinks the picture when searching. Small = more accurate but slower.",unsafe_allow_html=True)
+    st.sidebar.markdown(f"<b>📏 Scale Factor</b><br> Decides how slowly the system shrinks the picture when searching. Small = more accurate but slower.",unsafe_allow_html=True)
 
 min_neighbors_input = st.sidebar.number_input(
     "🔍 Min Neighbors (1 – 10)",
@@ -59,7 +59,7 @@ min_neighbors_input = st.sidebar.number_input(
     help="How many times the plate must be found nearby to accept it. Bigger = stricter."
 )
 if min_neighbors_input:
-    st.sidebar.markdown(f"**🔍 Min Neighbors ** <br> Says how many times a plate must appear nearby to be real. Bigger = fewer mistakes, but may miss some.",unsafe_allow_html=True)
+    st.sidebar.markdown(f"<b>🔍 Min Neighbors</b> <br> Says how many times a plate must appear nearby to be real. Bigger = fewer mistakes, but may miss some.",unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 
