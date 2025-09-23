@@ -177,6 +177,10 @@ if st.session_state.params_submitted:
                             cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB),
                             channels="RGB", use_container_width=True
                         )
+
+                    # --- Processed frame count display ---
+                    st.caption(f"Processed Frames: {frame_count} / {total_frames}")
+
                     progress_bar.progress(min(frame_count / total_frames, 1.0))
 
                 cap.release()
