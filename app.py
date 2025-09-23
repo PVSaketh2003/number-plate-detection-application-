@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align: center; color: #FF4B4B;'>🚗 Russian Number Plate Detection</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #000000;'>🚗 Russian Number Plate Detection</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
 # --- User Guide ---
