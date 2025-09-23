@@ -155,7 +155,8 @@ if st.session_state.params_submitted:
                     st.stop()
 
                 stframe = st.empty()
-                progress_container = st.empty()  # Container for progress bar + frame count
+                progress_bar = st.progress(0)
+                frame_count_text = st.empty()
                 frame_count = 0
 
                 while cap.isOpened():
@@ -178,12 +179,13 @@ if st.session_state.params_submitted:
                             channels="RGB", use_container_width=True
                         )
 
-                    # Update progress bar + frame count with bold text
-                    progress_container.markdown(
+                    # Update progress bar
+                    progress_bar.progress(min(frame_count / total_frames, 1.0))
+                    # Update processed frame count BELOW the bar
+                    frame_count_text.markdown(
                         f"<b>Processed Frames:</b> {frame_count} / {total_frames}",
                         unsafe_allow_html=True
                     )
-                    progress_container.progress(min(frame_count / total_frames, 1.0))
 
                 cap.release()
                 out_writer.release()
