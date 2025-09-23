@@ -79,7 +79,7 @@ if st.session_state.params_submitted:
         cv2.data.haarcascades + "haarcascade_russian_plate_number.xml"
     )
 
-    # --- Object detection function (logic unchanged) ---
+    # --- Object detection function ---
     def detect_numberplate(img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         plates = number_plate.detectMultiScale(
@@ -156,7 +156,6 @@ if st.session_state.params_submitted:
 
                 stframe = st.empty()
                 progress_container = st.empty()  # Container for progress bar + frame count
-                progress_bar = progress_container.progress(0)
                 frame_count = 0
 
                 while cap.isOpened():
@@ -179,10 +178,12 @@ if st.session_state.params_submitted:
                             channels="RGB", use_container_width=True
                         )
 
-                    # Update progress bar + frame count together
-                    progress_container.empty()
+                    # Update progress bar + frame count with bold text
+                    progress_container.markdown(
+                        f"<b>Processed Frames:</b> {frame_count} / {total_frames}",
+                        unsafe_allow_html=True
+                    )
                     progress_container.progress(min(frame_count / total_frames, 1.0))
-                    progress_container.text(f"Processed Frames: {frame_count} / {total_frames}")
 
                 cap.release()
                 out_writer.release()
