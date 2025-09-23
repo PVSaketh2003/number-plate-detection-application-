@@ -117,7 +117,7 @@ if st.session_state.params_submitted:
             if st.session_state.processed_img is not None:
                 st.image(
                     cv2.cvtColor(st.session_state.processed_img, cv2.COLOR_BGR2RGB),
-                    caption="Processed Photo", use_column_width=True
+                    caption="Processed Photo", use_container_width=True
                 )
                 if st.button("💾 Save Processed Image"):
                     _, buffer = cv2.imencode(".png", st.session_state.processed_img)
